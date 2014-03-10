@@ -65,7 +65,7 @@ abstract class AbstractDirectServer {
 	void handleRequest(String base, String path, String jsonRequest, HttpRequest request);
 
 	void start() {
-		HttpServer.bind("127.0.0.1", 8081).then((server) {
+		HttpServer.bind("0.0.0.0", 8081).then((server) {
 			print("Server ${server.address}:${server.port} on ${_webUri.toString()}");
 
 			server.listen((HttpRequest request) {
