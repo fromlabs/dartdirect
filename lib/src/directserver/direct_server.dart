@@ -19,8 +19,8 @@ class DevDirectServer extends AbstractDirectServer {
 
   final Uri _isolateUri;
 
-  DevDirectServer({Uri webUri, Uri isolateUri}) :
-    super(webUri: webUri), this._isolateUri = isolateUri;
+  DevDirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri, Uri isolateUri}) :
+    super(host: host, port: port, webUri: webUri), this._isolateUri = isolateUri;
 
 	void handleRequest(String base, String path, String jsonRequest, HttpRequest request) {
 		var receivePort = new ReceivePort();
@@ -43,7 +43,7 @@ class DevDirectServer extends AbstractDirectServer {
 
 class DirectServer extends AbstractDirectServer {
 
-  DirectServer({Uri webUri}) : super(webUri: webUri) {
+  DirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri}) : super(host: host, port: port, webUri: webUri) {
     DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
   }
 
@@ -58,14 +58,18 @@ class DirectServer extends AbstractDirectServer {
 
 abstract class AbstractDirectServer {
 
+	final String _host;
+
+	final num _port;
+
   final Uri _webUri;
 
-  AbstractDirectServer({webUri}) : this._webUri = webUri;
+  AbstractDirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri}) : this._webUri = webUri, this._host = host,  this._port = port;
 
 	void handleRequest(String base, String path, String jsonRequest, HttpRequest request);
 
 	void start() {
-		HttpServer.bind("0.0.0.0", 8081).then((server) {
+		HttpServer.bind(_host, _port).then((server) {
 			print("Server ${server.address}:${server.port} on ${_webUri.toString()}");
 
 			server.listen((HttpRequest request) {
