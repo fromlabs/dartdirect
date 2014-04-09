@@ -3,6 +3,7 @@ library directserver;
 import "dart:io";
 import "dart:isolate";
 import "dart:convert";
+import 'dart:async';
 
 import 'package:mime/mime.dart';
 
