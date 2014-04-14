@@ -46,11 +46,8 @@ class DirectHandler {
 
   String _getDartApi(String base, bool localApi) {
     StringBuffer buffer = new StringBuffer();
-    buffer
-      ..write("Ext.ns('Ext.app');")
-      ..write("\r\n");
 
-    buffer.write("Ext.app.REMOTING_API = ");
+    buffer.write("var remotingApi = ");
 
     buffer
       ..write(JSON.encode(_getDirectApiMap(base, localApi)))
@@ -58,7 +55,7 @@ class DirectHandler {
       ..write("\r\n");
 
     buffer
-      ..write("onDirectApiLoaded(Ext.app.REMOTING_API);")
+      ..write("onDirectApiLoaded(remotingApi);")
       ..write("\r\n");
     return buffer.toString();
   }
