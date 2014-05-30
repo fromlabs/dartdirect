@@ -3,7 +3,7 @@ library directbackend;
 import "dart:convert";
 import "dart:async";
 
-@MirrorsUsed(metaTargets: 'DirectAction')
+@MirrorsUsed(metaTargets: DirectAction)
 import "dart:mirrors";
 
 import "package:intl/intl.dart";
