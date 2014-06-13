@@ -80,7 +80,7 @@ abstract class AbstractDirectServer {
 	void start() {
 		runZoned(() {
 			HttpServer.bind(_host, _port).then((server) {
-				print("Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).absolute.path}");
+				print("Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
 
 				server.listen((HttpRequest request) {
 					request.response.headers.add("Access-Control-Allow-Origin", "*");
