@@ -1,13 +1,14 @@
 library directserver;
 
+import 'package:dartdirect/direct_registry.dart';
+import 'package:dartdirect/direct_backend_api.dart';
+import 'package:dartdirect/direct_backend_runtime.dart';
+
+import 'package:mime/mime.dart';
+
 import "dart:io";
 import "dart:isolate";
 import "dart:convert";
 import 'dart:async';
-
-import 'package:mime/mime.dart';
-
-import "direct_backend_api.dart";
-import "direct_backend_runtime.dart";
 
 part "src/directserver/direct_server.dart";

@@ -2,122 +2,33 @@ part of directbackend;
 
 final JSON_DATE_FORMAT = new DateFormat("yyyy/MM/dd HH:mm:ss");
 
-typedef void DirectCallback(String jsonResponse);
-
 class DirectHandler {
 
-	String get dartApi => _getDartApi(null, true);
+	static ProviderFunction<DirectManager> _DIRECT_MANAGER_SERVICE_PROVIDER = Registry.lookupProvider(DirectManager);
 
-	void directCall(String base, String path, String json, DirectCallback callback) {
-		print("${DIRECT_ENVIROMENT == DirectEnviroment.CLIENT ? "Local" : "Remote"} call to '$path'");
+	final ScopeContext _isolateScopeContext;
 
-		if (path == "/direct/api") {
-			callback(_getDartApi(base, false));
-		} else {
-			// read parameters
-			var directRequest = JSON.decode(json);
+	DirectHandler(this._isolateScopeContext);
 
-			String action = directRequest["action"];
-			String method = directRequest["method"];
-			int tid = directRequest["tid"];
-			String type = directRequest["type"];
+	String get dartApi => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
 
-			var directResponse = {
-				"action": action,
-				"method": method,
-				"tid": tid,
-				"type": type
-			};
+	Future directCall(String base, String path, String json, DirectCallback callback) =>
+		_scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(base, path, json, callback));
 
-			var result = _invokeDirectService(action, method, directRequest["data"]);
-
+	_scopedCall(ScopeRunnable runnable) {
+		var result;
+		var callScopeContext = Registry.initializeScope(DirectScopeContext.CALL, new MapScopeContext());
+		try {
+			result = Registry.runInScope(runnable, [_isolateScopeContext, callScopeContext]);
+			if (result is Future) {
+				return result.whenComplete(() => Registry.deinitializeScope(callScopeContext));
+			} else {
+				return result;
+			}
+		} finally {
 			if (result is! Future) {
-				result = new Future.value(result);
+				Registry.deinitializeScope(callScopeContext);
 			}
-
-			result.then((value) {
-				directResponse["result"] = value;
-
-				callback(JSON.encode(directResponse));
-			});
 		}
-	}
-
-	String _getDartApi(String base, bool localApi) {
-		StringBuffer buffer = new StringBuffer();
-
-		buffer.write("var remotingApi = ");
-
-		buffer
-				..write(JSON.encode(_getDirectApiMap(base, localApi)))
-				..write(";")
-				..write("\r\n");
-
-		buffer
-				..write("onDirectApiLoaded(remotingApi);")
-				..write("\r\n");
-		return buffer.toString();
-	}
-
-	Map<String, dynamic> _getDirectApiMap(String base, bool localApi) {
-		Map<String, dynamic> apiMap = {};
-
-		apiMap["url"] = base != null ? "$base/direct" : "direct";
-		apiMap["type"] = localApi ? "dart" : "remoting";
-		apiMap["maxRetries"] = "0";
-		apiMap["timeout"] = "300000"; // 5 minuti
-		apiMap["enableBuffer"] = false;
-
-		Map<String, dynamic> actionMap = {};
-		apiMap["actions"] = actionMap;
-
-		List<Object> methodList;
-		Map<String, Object> methodMap;
-
-		currentMirrorSystem().libraries.forEach((uri, libraryMirror) {
-			if (!uri.toString().startsWith("dart:")) {
-				libraryMirror.declarations.forEach((symbol, declarationMirror) {
-
-					var directActionMetadata = declarationMirror.metadata.firstWhere((m) => m.reflectee is DirectAction, orElse: () => null);
-					if (declarationMirror is ClassMirror && directActionMetadata != null) {
-						methodList = [];
-						actionMap[MirrorSystem.getName(symbol)] = methodList;
-						declarationMirror.declarations.forEach((methodSymbol, declarationMirror2) {
-							if (declarationMirror2 is MethodMirror && declarationMirror2.metadata.contains(reflect(DirectMethod))) {
-								methodMap = {};
-								methodList.add(methodMap);
-								methodMap["name"] = MirrorSystem.getName(methodSymbol);
-								methodMap["len"] = declarationMirror2.parameters.length;
-							}
-						});
-					}
-				});
-			}
-		});
-
-		return apiMap;
-	}
-
-	_invokeDirectService(String action, String method, List<dynamic> data) {
-		InstanceMirror result;
-		currentMirrorSystem().libraries.forEach((uri, libraryMirror) {
-			if (!uri.toString().startsWith("dart:")) {
-				var typeMirror = libraryMirror.declarations[new Symbol(action)];
-				if (typeMirror is ClassMirror && typeMirror.metadata.firstWhere((m) => m.reflectee is DirectAction, orElse: () => null) != null) {
-					var serviceMirror = typeMirror.newInstance(new Symbol(""), []);
-					var methodSymbol = new Symbol(method);
-					MethodMirror methodMirror = serviceMirror.type.declarations[methodSymbol];
-					if (methodMirror != null && methodMirror.metadata.contains(reflect(DirectMethod))) {
-						if (methodMirror.parameters.isEmpty) {
-							result = serviceMirror.invoke(methodSymbol, []);
-						} else {
-							result = serviceMirror.invoke(methodSymbol, data);
-						}
-					}
-					return;
-				}
-			}
-		});
-		return result != null ? result.reflectee : null;
 	}
 }

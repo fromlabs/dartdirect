@@ -1,22 +1,31 @@
 part of directserver;
 
-class DirectIsolateHandler {
+class DevDirectIsolateHandler {
 
-	DirectIsolateHandler() {
+	final Type module;
+
+	final Map<String, dynamic> parameters;
+
+	DevDirectIsolateHandler(this.module, [this.parameters = const {}]) {
 		DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
 	}
 
 	void handleRequest(dynamic message) {
-		var sendPort = message["sendPort"];
-		new DirectHandler().directCall(message["base"], message["path"], message["jsonRequest"], (jsonResponse) {
-			sendPort.send({
-				"action": "write",
-				"jsonResponse": jsonResponse
+		var isolateScopeContext;
+		new Future.sync(() => Registry.load(module, parameters)).then((_) {
+			isolateScopeContext = Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext());
+		}).then((context) {
+			SendPort sendPort = message["sendPort"];
+			return new DirectHandler(isolateScopeContext).directCall(message["base"], message["path"], message["jsonRequest"], (jsonResponse) {
+				sendPort.send({
+					"action": "write",
+					"jsonResponse": jsonResponse
+				});
+				sendPort.send({
+					"action": "close"
+				});
 			});
-			sendPort.send({
-				"action": "close"
-			});
-		});
+		}).whenComplete(() => Registry.deinitializeScope(isolateScopeContext)).whenComplete(() => Registry.unload());
 	}
 }
 
@@ -49,12 +58,40 @@ class DevDirectServer extends AbstractDirectServer {
 
 class DirectServer extends AbstractDirectServer {
 
-	DirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri}) : super(host: host, port: port, webUri: webUri) {
+	final Type module;
+
+	final Map<String, dynamic> parameters;
+
+	ScopeContext _isolateScopeContext;
+
+	DirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri, this.module, this.parameters: const {}}) : super(host: host, port: port, webUri: webUri) {
 		DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
 	}
 
+	void start() {
+		ProcessSignal.SIGTERM.watch().listen((ProcessSignal signal) {
+			print("Catch TERMINATION signal");
+			this._stop().whenComplete(() => exit(0));
+		});
+
+		ProcessSignal.SIGINT.watch().listen((ProcessSignal signal) {
+			print("Catch INTERUPT signal");
+			this._stop().whenComplete(() => exit(0));
+		});
+
+		new Future.sync(() => Registry.load(module, parameters)).then((_) {
+			_isolateScopeContext = Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext());
+		}).then((context) {
+			super.start();
+		});
+	}
+
+	Future _stop() {
+		return new Future.sync(() => Registry.deinitializeScope(_isolateScopeContext)).whenComplete(() => Registry.unload());
+	}
+
 	void handleRequest(String base, String path, String jsonRequest, HttpRequest request) {
-		new DirectHandler().directCall(base, path, jsonRequest, (jsonResponse) {
+		new DirectHandler(_isolateScopeContext).directCall(base, path, jsonRequest, (jsonResponse) {
 			request.response.headers.contentType = new ContentType("application", "json", charset: "utf-8");
 			request.response.write(jsonResponse);
 			request.response.close();
@@ -78,57 +115,46 @@ abstract class AbstractDirectServer {
 	void handleRequest(String base, String path, String jsonRequest, HttpRequest request);
 
 	void start() {
-		runZoned(() {
-			HttpServer.bind(_host, _port).then((server) {
-				print("Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
+		HttpServer.bind(_host, _port).then((server) {
+			print("Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
 
-				server.listen((HttpRequest request) {
-					request.response.headers.add("Access-Control-Allow-Origin", "*");
-					request.response.headers.add("Access-Control-Allow-Headers", "X-Requested-With,Content-Type");
-					request.response.headers.set("Access-Control-Allow-Methods", "POST");
-					if (request.method == "OPTIONS") {
-						request.response.close();
+			server.listen((HttpRequest request) {
+				// request.response.headers.add("Access-Control-Allow-Origin", "*");
+				// request.response.headers.add("Access-Control-Allow-Headers", "X-Requested-With,Content-Type");
+				// request.response.headers.set("Access-Control-Allow-Methods", "POST");
+
+				if (request.method == "OPTIONS") {
+					request.response.close();
+				} else {
+					String path = request.uri.path;
+					if (path.endsWith("direct") || path.endsWith("direct/api")) {
+						StringBuffer buffer = new StringBuffer();
+						request.transform(new Utf8Decoder()).listen((String chunk) => buffer.write(chunk), onDone: () {
+							handleRequest(null, path, buffer.toString(), request);
+						});
 					} else {
-						String path = request.uri.path;
-						if (path == "/direct" || path == "/direct/api") {
-							String base;
-
-							if (path == "/direct/api") {
-								if (request.uri.queryParameters.containsKey("standalone")) {
-									base = request.requestedUri.origin;
-								} else {
-									base = null;
-								}
-							}
-
-							StringBuffer buffer = new StringBuffer();
-							request.transform(new Utf8Decoder()).listen((String chunk) => buffer.write(chunk), onDone: () {
-								handleRequest(base, path, buffer.toString(), request);
-							});
-						} else {
-							if (path == "/") {
-								path = "/index.html";
-							}
-
-							final File file = new File("${_webUri}${path}");
-							file.exists().then((bool found) {
-								if (found) {
-									var mimeType = lookupMimeType(path.split("\\.").last);
-									if (mimeType != null) {
-										var split = mimeType.split("/");
-										request.response.headers.contentType = new ContentType(split[0], split[1]);
-									}
-
-									file.openRead().pipe(request.response).catchError((e) {});
-								} else {
-									request.response.statusCode = HttpStatus.NOT_FOUND;
-									request.response.close();
-								}
-							});
+						if (path.endsWith("/")) {
+							path += "index.html";
 						}
+
+						final File file = new File("${_webUri}${path}");
+						file.exists().then((bool found) {
+							if (found) {
+								var mimeType = lookupMimeType(path.split("\\.").last);
+								if (mimeType != null) {
+									var split = mimeType.split("/");
+									request.response.headers.contentType = new ContentType(split[0], split[1]);
+								}
+
+								file.openRead().pipe(request.response).catchError((e) {});
+							} else {
+								request.response.statusCode = HttpStatus.NOT_FOUND;
+								request.response.close();
+							}
+						});
 					}
-				});
+				}
 			});
-		}, onError: (e, stackTrace) => print('Oh noes! $e $stackTrace'));
+		});
 	}
 }
