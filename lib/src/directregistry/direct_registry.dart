@@ -1,5 +1,11 @@
 part of directregistry;
 
+const Object Inject = const _Inject();
+
+class _Inject {
+	const _Inject();
+}
+
 typedef T ProviderFunction<T>();
 
 class FutureInstance<T> {
@@ -360,7 +366,36 @@ class Registry {
 	}
 
 	static void _injectBindings(instance) {
-		// TODO injection
+		var instanceMirror = reflect(instance);
+		var injectMirror = reflect(Inject);
+		instanceMirror.type.declarations.forEach((symbol, DeclarationMirror mirror) {
+			if (mirror.metadata.contains(injectMirror)) {
+				if (mirror is VariableMirror) {
+					var variableType = mirror.type;
+					if (variableType is TypedefMirror && variableType.isSubtypeOf(reflectType(ProviderFunction))) {
+						if (variableType.typeArguments.length == 1) {
+							var typeMirror = variableType.typeArguments[0];
+
+							if (typeMirror.isAssignableTo(reflectType(Future))) {
+								if (typeMirror.typeArguments.length == 1) {
+									typeMirror = typeMirror.typeArguments[0];
+								} else {
+									throw new ArgumentError();
+								}
+							}
+
+							instanceMirror.setField(symbol, Registry.lookupProvider(typeMirror.reflectedType));
+						} else {
+							throw new ArgumentError();
+						}
+					} else {
+						throw new ArgumentError();
+					}
+				} else {
+					throw new ArgumentError();
+				}
+			}
+		});
 	}
 }
 
