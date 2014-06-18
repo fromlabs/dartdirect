@@ -7,10 +7,10 @@ ScopeContext _isolateScopeContext;
 void initializeClientDirectHandling(Type module, [Map<String, dynamic> parameters = const {}]) {
 	DIRECT_ENVIROMENT = context["DIRECT_ENVIROMENT"];
 
-	Registry.load(module, parameters).then((_) {
-		_isolateScopeContext = Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext());
-	}).then((_) {
-
+	Registry.load(module, parameters)
+	.then((_) =>Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext()))
+	.then((context) => _isolateScopeContext = context)
+	.then((_) {
 		var handler = new DirectHandler(_isolateScopeContext);
 
 		context["dartApi"] = () =>handler.dartApi;

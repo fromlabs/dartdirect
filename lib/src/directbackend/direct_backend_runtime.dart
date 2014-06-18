@@ -12,23 +12,13 @@ class DirectHandler {
 
 	String get dartApi => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
 
-	Future directCall(String base, String path, String json, DirectCallback callback) =>
-		_scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(base, path, json, callback));
+	Future directCall(String base, String path, String json, DirectCallback callback) => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(base, path, json, callback));
 
 	_scopedCall(ScopeRunnable runnable) {
-		var result;
-		var callScopeContext = Registry.initializeScope(DirectScopeContext.CALL, new MapScopeContext());
-		try {
-			result = Registry.runInScope(runnable, [_isolateScopeContext, callScopeContext]);
-			if (result is Future) {
-				return result.whenComplete(() => Registry.deinitializeScope(callScopeContext));
-			} else {
-				return result;
-			}
-		} finally {
-			if (result is! Future) {
-				Registry.deinitializeScope(callScopeContext);
-			}
-		}
+		var callScopeContext;
+		return Registry.initializeScope(DirectScopeContext.CALL, new MapScopeContext())
+		.then((context) => callScopeContext = context)
+		.then((_) => Registry.runInScope(runnable, [_isolateScopeContext, callScopeContext]))
+		.whenComplete(() => Registry.deinitializeScope(callScopeContext));
 	}
 }

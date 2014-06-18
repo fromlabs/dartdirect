@@ -207,7 +207,7 @@ class Registry {
 		});
 	}
 
-	static ScopeContext initializeScope(RegistryScopeId scope, ScopeContext scopeContext) {
+	static Future<ScopeContext> initializeScope(RegistryScopeId scope, ScopeContext scopeContext) {
 		print("Initialize scope: $scope");
 
 		Map<Provider, dynamic> providers = scopeContext.bindings;
@@ -220,10 +220,10 @@ class Registry {
 
 		scopeContext._registerInScope(scope);
 
-		return scopeContext;
+		return new Future.value(scopeContext);
 	}
 
-	static void deinitializeScope(ScopeContext scopeContext) {
+	static Future deinitializeScope(ScopeContext scopeContext) {
 		print("Deinitialize scope: ${scopeContext._scope}");
 
 		Map<Provider, dynamic> providers = scopeContext.bindings;
@@ -251,6 +251,8 @@ class Registry {
 		scopeContext.removeBindings();
 
 		scopeContext._deregisterFromScope();
+
+		return new Future.value();
 	}
 
 	static runInScope(ScopeRunnable runnable, List<ScopeContext> scopeContexts) {

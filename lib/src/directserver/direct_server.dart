@@ -12,9 +12,7 @@ class DevDirectIsolateHandler {
 
 	void handleRequest(dynamic message) {
 		var isolateScopeContext;
-		Registry.load(module, parameters).then((_) {
-			isolateScopeContext = Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext());
-		}).then((context) {
+		Registry.load(module, parameters).then((_) => Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext())).then((context) => isolateScopeContext = context).then((_) {
 			SendPort sendPort = message["sendPort"];
 			return new DirectHandler(isolateScopeContext).directCall(message["base"], message["path"], message["jsonRequest"], (jsonResponse) {
 				sendPort.send({
@@ -68,7 +66,8 @@ class DirectServer extends AbstractDirectServer {
 		DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
 	}
 
-	void start() {
+	@override
+	Future start() {
 		ProcessSignal.SIGTERM.watch().listen((ProcessSignal signal) {
 			print("Catch TERMINATION signal");
 			this._stop().whenComplete(() => exit(0));
@@ -79,11 +78,7 @@ class DirectServer extends AbstractDirectServer {
 			this._stop().whenComplete(() => exit(0));
 		});
 
-		Registry.load(module, parameters).then((_) {
-			_isolateScopeContext = Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext());
-		}).then((context) {
-			super.start();
-		});
+		return Registry.load(module, parameters).then((_) => Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext())).then((context) => _isolateScopeContext = context).then((_) => super.start());
 	}
 
 	Future _stop() {
@@ -114,8 +109,8 @@ abstract class AbstractDirectServer {
 
 	void handleRequest(String base, String path, String jsonRequest, HttpRequest request);
 
-	void start() {
-		HttpServer.bind(_host, _port).then((server) {
+	Future start() {
+		return HttpServer.bind(_host, _port).then((server) {
 			print("Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
 
 			server.listen((HttpRequest request) {
