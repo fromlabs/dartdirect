@@ -2,11 +2,11 @@ part of directregistry;
 
 const Object Inject = const _Inject();
 
-class _Inject {
-	const _Inject();
-}
-
 typedef T ProviderFunction<T>();
+
+abstract class Provider<T> {
+	T get();
+}
 
 class FutureInstance<T> {
 
@@ -20,12 +20,10 @@ class FutureInstance<T> {
 }
 
 abstract class ScopeBindingListener {
-	void postBind();
-	void preUnbind();
-}
 
-abstract class Provider<T> {
-	T provide();
+	void postBind();
+
+	void preUnbind();
 }
 
 abstract class ProviderListener<T> {
@@ -42,13 +40,17 @@ abstract class AsyncProviderListener<T> {
 	void preUnbind(T instance);
 }
 
+class _Inject {
+	const _Inject();
+}
+
 class _ToFunctionProvider<T> extends Provider<T> {
 
 	final ProviderFunction<T> _function;
 
 	_ToFunctionProvider(this._function);
 
-	T provide() => _function();
+	T get() => _function();
 }
 
 class _ToClassProvider<T> extends Provider<T> {
@@ -57,7 +59,7 @@ class _ToClassProvider<T> extends Provider<T> {
 
 	_ToClassProvider(this._clazz);
 
-	T provide() => _newInstanceFromClass(this._clazz);
+	T get() => _newInstanceFromClass(this._clazz);
 }
 
 class _ToInstanceProvider<T> extends Provider<T> {
@@ -66,7 +68,7 @@ class _ToInstanceProvider<T> extends Provider<T> {
 
 	_ToInstanceProvider(this._instance);
 
-	T provide() => this._instance;
+	T get() => this._instance;
 }
 
 typedef ScopeRunnable();
@@ -87,7 +89,7 @@ abstract class RegistryModule {
 	Map<Type, _ProviderBinding> _bindings;
 
 	Future configure(Map<String, dynamic> parameters) {
-		_bindings = new LinkedHashMap.identity();
+		_bindings = {};
 
 		return new Future.value();
 	}
@@ -124,7 +126,7 @@ abstract class RegistryModule {
 
 	void onBindingAdded(Type clazz) {}
 
-	_ProviderBinding _getProviderBinding(Type clazz) => _bindings[clazz];
+	_getProviderBinding(Type clazz) =>_bindings[clazz];
 }
 
 class RegistryScopeId {
@@ -192,7 +194,7 @@ class Registry {
 		}
 		_MODULE = module;
 
-		_SCOPED_PROVIDERS_CACHE = new HashMap.identity();
+		_SCOPED_PROVIDERS_CACHE = {};
 		return _MODULE.configure(parameters).then((_) {
 			_injectProviders();
 		});
@@ -212,7 +214,7 @@ class Registry {
 
 		Map<Provider, dynamic> providers = scopeContext.bindings;
 		if (providers == null) {
-			providers = new LinkedHashMap.identity();
+			providers = {};
 			scopeContext.bindings = providers;
 		} else {
 			providers.clear();
@@ -269,7 +271,7 @@ class Registry {
 	}
 
 	static lookupObject(Type clazz) {
-		ProviderFunction provider = lookupProvider(clazz);
+		ProviderFunction provider = lookupProviderFunction(clazz);
 		if (provider != null) {
 			return provider();
 		} else {
@@ -279,7 +281,18 @@ class Registry {
 		}
 	}
 
-	static ProviderFunction lookupProvider(Type clazz) {
+	static lookupProvider(Type clazz) {
+		ProviderFunction provider = lookupProviderFunction(clazz);
+		if (provider != null) {
+			return new _ToFunctionProvider(provider);
+		} else {
+			print("Provider not found: $clazz");
+
+			return null;
+		}
+	}
+
+	static ProviderFunction lookupProviderFunction(Type clazz) {
 		if (_MODULE == null) {
 			throw new StateError("Registry module not loaded");
 		}
@@ -299,7 +312,7 @@ class Registry {
 							return null;
 						}
 					} else {
-						return providerBinding.provider.provide();
+						return providerBinding.provider.get();
 					}
 				};
 
@@ -321,7 +334,7 @@ class Registry {
 		bool newInstance = (instance == null);
 
 		if (newInstance) {
-			instance = provider.provide();
+			instance = provider.get();
 
 			providers[provider] = instance;
 
@@ -377,17 +390,15 @@ class Registry {
 	}
 
 	static void _injectBindings(instance) {
-		var instanceMirror = reflect(instance);
-		var injectMirror = reflect(Inject);
-		instanceMirror.type.declarations.forEach((symbol, DeclarationMirror mirror) {
-			if (mirror.metadata.contains(injectMirror)) {
-				if (mirror is VariableMirror) {
+		reflect(instance).type.declarations.forEach((symbol, DeclarationMirror mirror) {
+			if (mirror is VariableMirror) {
+				if (mirror.metadata.contains(reflect(Inject))) {
 					var variableType = mirror.type;
-					if (variableType is TypedefMirror && variableType.isSubtypeOf(reflectType(ProviderFunction))) {
+					if (variableType is ClassMirror && variableType.isSubclassOf(reflectClass(Provider))) {
 						if (variableType.typeArguments.length == 1) {
 							var typeMirror = variableType.typeArguments[0];
 
-							if (typeMirror.isAssignableTo(reflectType(Future))) {
+							if (typeMirror.isSubclassOf(reflectClass(Future))) {
 								if (typeMirror.typeArguments.length == 1) {
 									typeMirror = typeMirror.typeArguments[0];
 								} else {
@@ -395,15 +406,31 @@ class Registry {
 								}
 							}
 
-							instanceMirror.setField(symbol, Registry.lookupProvider(typeMirror.reflectedType));
+							reflect(instance).setField(symbol, Registry.lookupProvider(typeMirror.originalDeclaration.reflectedType));
+						} else {
+							throw new ArgumentError();
+						}
+					} else if (variableType is ClassMirror && variableType.reflectedType == Function) {
+						throw new UnimplementedError();
+					} else if (variableType is TypedefMirror && variableType.isSubtypeOf(reflectClass(ProviderFunction))) {
+						if (variableType.typeArguments.length == 1) {
+							var typeMirror = variableType.typeArguments[0];
+
+							if (typeMirror.isSubclassOf(reflectClass(Future))) {
+								if (typeMirror.typeArguments.length == 1) {
+									typeMirror = typeMirror.typeArguments[0];
+								} else {
+									throw new ArgumentError();
+								}
+							}
+
+							reflect(instance).setField(symbol, Registry.lookupProviderFunction(typeMirror.originalDeclaration.reflectedType));
 						} else {
 							throw new ArgumentError();
 						}
 					} else {
 						throw new ArgumentError();
 					}
-				} else {
-					throw new ArgumentError();
 				}
 			}
 		});
