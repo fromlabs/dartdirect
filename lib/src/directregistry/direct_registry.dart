@@ -86,13 +86,17 @@ abstract class RegistryModule {
 
 	Map<Type, _ProviderBinding> _bindings;
 
-	void configure(Map<String, dynamic> parameters) {
+	Future configure(Map<String, dynamic> parameters) {
 		_bindings = new LinkedHashMap.identity();
+
+		return new Future.value();
 	}
 
-	void unconfigure() {
+	Future unconfigure() {
 		_bindings.clear();
 		_bindings = null;
+
+		return new Future.value();
 	}
 
 	void bindInstance(Type clazz, instance) {
@@ -179,7 +183,7 @@ class Registry {
 
 	static Map<Type, ProviderFunction> _SCOPED_PROVIDERS_CACHE;
 
-	static void load(Type moduleClazz, Map<String, dynamic> parameters) {
+	static Future load(Type moduleClazz, [Map<String, dynamic> parameters = const {}]) {
 		print("Load module");
 
 		var module = _newInstanceFromClass(moduleClazz);
@@ -189,17 +193,18 @@ class Registry {
 		_MODULE = module;
 
 		_SCOPED_PROVIDERS_CACHE = new HashMap.identity();
-		_MODULE.configure(parameters);
-
-		_injectProviders();
+		return _MODULE.configure(parameters).then((_) {
+			_injectProviders();
+		});
 	}
 
-	static void unload() {
+	static Future unload() {
 		print("Unload module");
 
-		_MODULE.unconfigure();
-		_MODULE = null;
-		_SCOPED_PROVIDERS_CACHE = null;
+		return _MODULE.unconfigure().then((_) {
+			_MODULE = null;
+			_SCOPED_PROVIDERS_CACHE = null;
+		});
 	}
 
 	static ScopeContext initializeScope(RegistryScopeId scope, ScopeContext scopeContext) {
@@ -273,6 +278,10 @@ class Registry {
 	}
 
 	static ProviderFunction lookupProvider(Type clazz) {
+		if (_MODULE == null) {
+			throw new StateError("Registry module not loaded");
+		}
+
 		_ProviderBinding providerBinding = _MODULE._getProviderBinding(clazz);
 		if (providerBinding != null) {
 			ProviderFunction scopedProvider = _SCOPED_PROVIDERS_CACHE[clazz];

@@ -12,7 +12,7 @@ class DevDirectIsolateHandler {
 
 	void handleRequest(dynamic message) {
 		var isolateScopeContext;
-		new Future.sync(() => Registry.load(module, parameters)).then((_) {
+		Registry.load(module, parameters).then((_) {
 			isolateScopeContext = Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext());
 		}).then((context) {
 			SendPort sendPort = message["sendPort"];
@@ -79,7 +79,7 @@ class DirectServer extends AbstractDirectServer {
 			this._stop().whenComplete(() => exit(0));
 		});
 
-		new Future.sync(() => Registry.load(module, parameters)).then((_) {
+		Registry.load(module, parameters).then((_) {
 			_isolateScopeContext = Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext());
 		}).then((context) {
 			super.start();

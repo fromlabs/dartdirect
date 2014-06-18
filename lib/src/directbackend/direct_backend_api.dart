@@ -13,21 +13,21 @@ class DirectModule extends RegistryModule {
 	DirectManager directManager;
 
 	@override
-	void configure(Map<String, dynamic> parameters) {
-		super.configure(parameters);
+	Future configure(Map<String, dynamic> parameters) {
+		return super.configure(parameters).then((_) {
 
-		this.directManager = new DirectManager(DIRECT_ENVIROMENT);
+			this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 
-		bindInstance(DirectManager, this.directManager);
-		bindClass(DirectRequest, DirectScopeContext.CALL);
-    	}
+			bindInstance(DirectManager, this.directManager);
+			bindClass(DirectRequest, DirectScopeContext.CALL);
+		});
+	}
 
 	@override
-    	void unconfigure() {
+	Future unconfigure() {
 		this.directManager.deregisterAllDirectActions();
 		this.directManager = null;
-
-		super.unconfigure();
+		return super.unconfigure();
 	}
 
 	void onBindingAdded(Type clazz) {

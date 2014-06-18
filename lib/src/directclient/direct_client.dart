@@ -7,7 +7,7 @@ ScopeContext _isolateScopeContext;
 void initializeClientDirectHandling(Type module, [Map<String, dynamic> parameters = const {}]) {
 	DIRECT_ENVIROMENT = context["DIRECT_ENVIROMENT"];
 
-	new Future.sync(() => Registry.load(module, parameters)).then((_) {
+	Registry.load(module, parameters).then((_) {
 		_isolateScopeContext = Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext());
 	}).then((_) {
 
