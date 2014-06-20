@@ -77,7 +77,7 @@ class _ProviderBinding {
 
 	final Type clazz;
 
-	final RegistryScopeId scope;
+	final ScopeContextId scope;
 
 	final Provider provider;
 
@@ -105,16 +105,16 @@ abstract class RegistryModule {
 		_addProviderBinding(clazz, new _ProviderBinding(clazz, ScopeContext.ISOLATE, new _ToInstanceProvider(instance)));
 	}
 
-	void bindClass(Type clazz, RegistryScopeId scope, [Type clazzImpl]) {
+	void bindClass(Type clazz, ScopeContextId scope, [Type clazzImpl]) {
 		clazzImpl = clazzImpl != null ? clazzImpl : clazz;
 		_addProviderBinding(clazz, new _ProviderBinding(clazz, scope, new _ToClassProvider(clazzImpl)));
 	}
 
-	void bindProviderFunction(Type clazz, RegistryScopeId scope, ProviderFunction providerFunction) {
+	void bindProviderFunction(Type clazz, ScopeContextId scope, ProviderFunction providerFunction) {
 		_addProviderBinding(clazz, new _ProviderBinding(clazz, scope, new _ToFunctionProvider(providerFunction)));
 	}
 
-	void bindProvider(Type clazz, RegistryScopeId scope, Provider provider) {
+	void bindProvider(Type clazz, ScopeContextId scope, Provider provider) {
 		_addProviderBinding(clazz, new _ProviderBinding(clazz, scope, provider));
 	}
 
@@ -129,22 +129,22 @@ abstract class RegistryModule {
 	_getProviderBinding(Type clazz) =>_bindings[clazz];
 }
 
-class RegistryScopeId {
+class ScopeContextId {
 
 	final String id;
 
-	const RegistryScopeId(this.id);
+	const ScopeContextId(this.id);
 
 	String toString() => this.id;
 }
 
 abstract class ScopeContext {
-	static const RegistryScopeId NONE = const RegistryScopeId("NONE");
-	static const RegistryScopeId ISOLATE = const RegistryScopeId("ISOLATE");
+	static const ScopeContextId NONE = const ScopeContextId("NONE");
+	static const ScopeContextId ISOLATE = const ScopeContextId("ISOLATE");
 
-	RegistryScopeId _scope;
+	ScopeContextId _scope;
 
-	void _registerInScope(RegistryScopeId scope) {
+	void _registerInScope(ScopeContextId scope) {
 		this._scope = scope;
 	}
 
@@ -209,7 +209,7 @@ class Registry {
 		});
 	}
 
-	static Future<ScopeContext> initializeScope(RegistryScopeId scope, ScopeContext scopeContext) {
+	static Future<ScopeContext> initializeScope(ScopeContextId scope, ScopeContext scopeContext) {
 		print("Initialize scope: $scope");
 
 		Map<Provider, dynamic> providers = scopeContext.bindings;
@@ -368,7 +368,7 @@ class Registry {
 		return instance is FutureInstance ? instance.future : instance;
 	}
 
-	static ScopeContext _getScopeContext(RegistryScopeId scope) {
+	static ScopeContext _getScopeContext(ScopeContextId scope) {
 		List<ScopeContext> scopeContexts = Zone.current[_SCOPE_CONTEXTS];
 
 		var found;

@@ -5,7 +5,7 @@ part of directbackendapi;
 String DIRECT_ENVIROMENT;
 
 class DirectScopeContext {
-	static const RegistryScopeId CALL = const RegistryScopeId("CALL");
+	static const ScopeContextId REQUEST = const ScopeContextId("REQUEST");
 }
 
 class DirectModule extends RegistryModule {
@@ -19,7 +19,7 @@ class DirectModule extends RegistryModule {
 			this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 
 			bindInstance(DirectManager, this.directManager);
-			bindClass(DirectRequest, DirectScopeContext.CALL);
+			bindClass(DirectRequest, DirectScopeContext.REQUEST);
 		});
 	}
 

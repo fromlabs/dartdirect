@@ -16,7 +16,7 @@ class DirectHandler {
 
 	_scopedCall(ScopeRunnable runnable) {
 		var callScopeContext;
-		return Registry.initializeScope(DirectScopeContext.CALL, new MapScopeContext())
+		return Registry.initializeScope(DirectScopeContext.REQUEST, new MapScopeContext())
 		.then((context) => callScopeContext = context)
 		.then((_) => Registry.runInScope(runnable, [_isolateScopeContext, callScopeContext]))
 		.whenComplete(() => Registry.deinitializeScope(callScopeContext));
