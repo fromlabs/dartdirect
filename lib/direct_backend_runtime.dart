@@ -1,7 +1,7 @@
 library directbackend;
 
 import 'package:dartdirect/direct_backend_api.dart';
-import 'package:dartdirect/direct_registry.dart';
+import 'package:dartregistry/dart_registry.dart';
 
 import "package:intl/intl.dart";
 

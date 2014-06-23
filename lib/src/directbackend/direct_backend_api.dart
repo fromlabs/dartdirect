@@ -4,11 +4,9 @@ part of directbackendapi;
 
 String DIRECT_ENVIROMENT;
 
-class DirectScopeContext {
-	static const ScopeContextId REQUEST = const ScopeContextId("REQUEST");
-}
-
 class DirectModule extends RegistryModule {
+
+	static const REQUEST = const Scope("REQUEST");
 
 	DirectManager directManager;
 
@@ -19,7 +17,9 @@ class DirectModule extends RegistryModule {
 			this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 
 			bindInstance(DirectManager, this.directManager);
-			bindClass(DirectRequest, DirectScopeContext.REQUEST);
+			bindClass(DirectHandler, Scope.ISOLATE);
+
+			bindClass(DirectRequest, DirectModule.REQUEST);
 		});
 	}
 
@@ -48,14 +48,6 @@ class DirectEnviroment {
 const DirectAction = const _DirectAction();
 const DirectMethod = const _DirectMethod();
 
-class _DirectAction {
-	const _DirectAction();
-}
-
-class _DirectMethod {
-	const _DirectMethod();
-}
-
 class DirectParams {
 }
 
@@ -74,4 +66,12 @@ class PagedList<T> {
 			"success": true
 		};
 	}
+}
+
+class _DirectAction {
+	const _DirectAction();
+}
+
+class _DirectMethod {
+	const _DirectMethod();
 }

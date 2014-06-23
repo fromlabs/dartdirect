@@ -1,6 +1,6 @@
 library directbackendapi;
 
-import 'package:dartdirect/direct_registry.dart';
+import 'package:dartregistry/dart_registry.dart';
 
 import "dart:convert";
 import 'dart:async';

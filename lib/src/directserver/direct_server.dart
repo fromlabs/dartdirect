@@ -11,10 +11,9 @@ class DevDirectIsolateHandler {
 	}
 
 	void handleRequest(dynamic message) {
-		var isolateScopeContext;
-		Registry.load(module, parameters).then((_) => Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext())).then((context) => isolateScopeContext = context).then((_) {
+		Registry.load(module, parameters).then((_) => Registry.openScope(Scope.ISOLATE)).then((_) {
 			SendPort sendPort = message["sendPort"];
-			return new DirectHandler(isolateScopeContext).directCall(message["base"], message["path"], message["jsonRequest"], (jsonResponse) {
+			return Registry.lookupObject(DirectHandler).directCall(message["base"], message["path"], message["jsonRequest"], (jsonResponse) {
 				sendPort.send({
 					"action": "write",
 					"jsonResponse": jsonResponse
@@ -23,7 +22,7 @@ class DevDirectIsolateHandler {
 					"action": "close"
 				});
 			});
-		}).whenComplete(() => Registry.deinitializeScope(isolateScopeContext)).whenComplete(() => Registry.unload());
+		}).whenComplete(() => Registry.closeScope(Scope.ISOLATE)).whenComplete(() => Registry.unload());
 	}
 }
 
@@ -60,8 +59,6 @@ class DirectServer extends AbstractDirectServer {
 
 	final Map<String, dynamic> parameters;
 
-	ScopeContext _isolateScopeContext;
-
 	DirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri, this.module, this.parameters: const {}}) : super(host: host, port: port, webUri: webUri) {
 		DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
 	}
@@ -78,15 +75,13 @@ class DirectServer extends AbstractDirectServer {
 			this._stop().whenComplete(() => exit(0));
 		});
 
-		return Registry.load(module, parameters).then((_) => Registry.initializeScope(ScopeContext.ISOLATE, new MapScopeContext())).then((context) => _isolateScopeContext = context).then((_) => super.start());
+		return Registry.load(module, parameters).then((_) => Registry.openScope(Scope.ISOLATE)).then((_) => super.start());
 	}
 
-	Future _stop() {
-		return new Future.sync(() => Registry.deinitializeScope(_isolateScopeContext)).whenComplete(() => Registry.unload());
-	}
+	Future _stop() => Registry.closeScope(Scope.ISOLATE).whenComplete(() => Registry.unload());
 
 	void handleRequest(String base, String path, String jsonRequest, HttpRequest request) {
-		new DirectHandler(_isolateScopeContext).directCall(base, path, jsonRequest, (jsonResponse) {
+		Registry.lookupObject(DirectHandler).directCall(base, path, jsonRequest, (jsonResponse) {
 			request.response.headers.contentType = new ContentType("application", "json", charset: "utf-8");
 			request.response.write(jsonResponse);
 			request.response.close();

@@ -183,3 +183,14 @@ class DirectManager {
 		return result != null ? result.reflectee : null;
 	}
 }
+
+class DirectHandler {
+
+	static ProviderFunction<DirectManager> _DIRECT_MANAGER_SERVICE_PROVIDER = Registry.lookupProviderFunction(DirectManager);
+
+	Future<String> get dartApi => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
+
+	Future directCall(String base, String path, String json, DirectCallback callback) => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(base, path, json, callback));
+
+	_scopedCall(ScopeRunnable runnable) => Registry.runInScope(DirectModule.REQUEST, runnable);
+}
