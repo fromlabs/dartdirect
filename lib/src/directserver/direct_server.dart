@@ -116,7 +116,7 @@ abstract class AbstractDirectServer {
 				if (request.method == "OPTIONS") {
 					request.response.close();
 				} else {
-					String path = request.uri.path;
+					String path = request.uri.toFilePath();
 					if (path.endsWith("direct") || path.endsWith("direct/api")) {
 						StringBuffer buffer = new StringBuffer();
 						request.transform(new Utf8Decoder()).listen((String chunk) => buffer.write(chunk), onDone: () {
