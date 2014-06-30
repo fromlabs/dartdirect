@@ -6,8 +6,6 @@ String DIRECT_ENVIROMENT;
 
 class DirectModule extends RegistryModule {
 
-	static const REQUEST = const Scope("REQUEST");
-
 	DirectManager directManager;
 
 	@override
@@ -16,10 +14,16 @@ class DirectModule extends RegistryModule {
 
 			this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 
+			Logger.root.level = Level.ALL;
+			Logger.root.onRecord.listen((LogRecord rec) {
+				print('${rec.level.name}: ${rec.time}: ${rec.message}');
+			});
+			bindProviderFunction(Logger, Scope.ISOLATE, provideLogger);
+
 			bindInstance(DirectManager, this.directManager);
 			bindClass(DirectHandler, Scope.ISOLATE);
 
-			bindClass(DirectRequest, DirectModule.REQUEST);
+			bindClass(DirectRequest, DirectScope.REQUEST);
 		});
 	}
 
@@ -29,6 +33,8 @@ class DirectModule extends RegistryModule {
 		this.directManager = null;
 		return super.unconfigure();
 	}
+
+	Logger provideLogger() => new Logger("");
 
 	void onBindingAdded(Type clazz) {
 		var annotationMirror = reflect(DirectAction);
@@ -62,8 +68,7 @@ class PagedList<T> {
 	Map toJson() {
 		return {
 			"data": data,
-			"total": total,
-			"success": true
+			"total": total
 		};
 	}
 }

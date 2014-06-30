@@ -22,6 +22,8 @@ class DevDirectIsolateHandler {
 					"action": "close"
 				});
 			});
+		}).catchError((error) {
+			print("Gestire errore generico: $error");
 		}).whenComplete(() => Registry.closeScope(Scope.ISOLATE)).whenComplete(() => Registry.unload());
 	}
 }
@@ -117,17 +119,19 @@ abstract class AbstractDirectServer {
 					request.response.close();
 				} else {
 					String path = "/" + request.uri.pathSegments.join("/");
-					if (path.endsWith("direct") || path.endsWith("direct/api")) {
+					if (path.endsWith("/direct") || path.endsWith("/direct/api")) {
 						StringBuffer buffer = new StringBuffer();
 						request.transform(new Utf8Decoder()).listen((String chunk) => buffer.write(chunk), onDone: () {
 							handleRequest(null, path, buffer.toString(), request);
 						});
 					} else {
-						if (path.endsWith("/")) {
-							path += "index.html";
+						var absolutePath = _webUri.path + path;
+
+						if (FileSystemEntity.isDirectorySync(absolutePath)) {
+							absolutePath += (absolutePath.endsWith("/") ? "" : "/") + "index.html";
 						}
 
-						final File file = new File("${_webUri}${path}");
+						final File file = new File(absolutePath);
 						file.exists().then((bool found) {
 							if (found) {
 								var mimeType = lookupMimeType(path.split("\\.").last);

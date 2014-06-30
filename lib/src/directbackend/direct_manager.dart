@@ -1,20 +1,47 @@
 part of directbackendapi;
 
-class DirectRequest {
+class DirectScope extends Scope {
+
+	static const Scope REQUEST = const Scope("DIRECT_REQUEST");
+
+	const DirectScope(String id) : super(id);
+}
+
+class BusinessError extends Error {
+	final String message;
+
+	final bool forceCommit;
+
+	final bool notifyToBackend;
+
+	BusinessError(this.message, this.forceCommit, this.notifyToBackend);
+
+	String toString() => message != null ? this.message : super.toString();
+
+	Map toJson() => {
+		"type": this.runtimeType.toString(),
+		"message": message
+	};
+}
+
+abstract class DirectObject {
+
 	String _domain;
 
 	String _action;
 
 	String _method;
 
-	List<dynamic> _data;
+	String _type;
 
-	void _registerRequest(String domain, String action, String method, List<dynamic> data) {
-		_domain = domain;
-		_action = action;
-		_method = method;
-		_data = data;
-	}
+	num _tid;
+
+	DirectObject({String domain, String action, String method, String type, num tid})
+			: this._domain = domain,
+			  this._action = action,
+			  this._method = method,
+			  this._type = type,
+			  this._tid = tid;
 
 	String get domain => _domain;
 
@@ -22,10 +49,85 @@ class DirectRequest {
 
 	String get method => _method;
 
+	String get type => _type;
+
+	num get tid => _tid;
+
+	Map toJson() => {
+		"domain": domain,
+		"action": _action,
+		"method": _method,
+		"type": _type,
+		"tid": _tid
+	};
+}
+
+class DirectRequest extends DirectObject {
+
+	List<dynamic> _data;
+
+	void _registerRequest(String domain, String action, String method, String type, num tid, List<dynamic> data) {
+		_domain = domain;
+		_action = action;
+		_method = method;
+		_type = type;
+		_tid = tid;
+		_data = data;
+	}
+
 	List<dynamic> get data => _data;
 }
 
+abstract class DirectResponse extends DirectObject {
+
+	DirectResponse({String domain, String action, String method, String type, num tid}) : super(domain: domain, action: action, method: method, type: type, tid: tid);
+
+	bool get isNotifyError => cause != null;
+
+	get cause => null;
+}
+
+class DirectResultResponse extends DirectResponse {
+
+	final result;
+
+	final bool locked;
+
+	final Map<String, dynamic> notifications;
+
+	final BusinessError businessError;
+
+	DirectResultResponse({this.result, this.locked, this.notifications, this.businessError, String domain, String action, String method, String type, num tid}) : super(domain: domain, action: action, method: method, type: type, tid: tid);
+
+	bool get isNotifyError => super.isNotifyError && businessError.notifyToBackend;
+
+	get cause => businessError;
+
+	Map toJson() => super.toJson()..addAll({
+				"success": true,
+				"result": result,
+				"businessError": businessError,
+				"locked": locked,
+				"notifications": notifications
+			});
+}
+
+class DirectErrorResponse extends DirectResponse {
+
+	final String error;
+
+	final cause;
+
+	DirectErrorResponse({this.error, this.cause, String domain, String action, String method, String type, num tid}) : super(domain: domain, action: action, method: method, type: type, tid: tid);
+
+	Map toJson() => super.toJson()..addAll({
+				"success": false,
+				"error": error
+			});
+}
+
 class DirectManager {
+	static Logger LOGGER = new Logger(MirrorSystem.getName(reflectType(DirectManager).simpleName));
 
 	Map<String, Type> _directActions = {};
 	Map<String, Map<String, MethodMirror>> _directMethods = {};
@@ -33,11 +135,11 @@ class DirectManager {
 	final String enviroment;
 
 	DirectManager(this.enviroment) {
-		print("Direct Manager registered in $enviroment enviroment");
+		LOGGER.config("Direct Manager registered in $enviroment enviroment");
 	}
 
 	void registerDirectAction(Type actionClazz) {
-		print("Register direct action: $actionClazz");
+		LOGGER.config("Register direct action: $actionClazz");
 
 		// recupero metodi
 		Map<String, MethodMirror> methods = new Map<String, MethodMirror>();
@@ -45,7 +147,7 @@ class DirectManager {
 		reflectClass(actionClazz).declarations.forEach((methodSymbol, methodMirror) {
 			if (methodMirror is MethodMirror && methodMirror.metadata.contains(annotationMirror)) {
 				var name = MirrorSystem.getName(methodSymbol);
-				print("Register direct method: ${name}");
+				LOGGER.config("Register direct method: ${name}");
 
 				methods[name] = methodMirror;
 			}
@@ -57,7 +159,7 @@ class DirectManager {
 	}
 
 	void deregisterAllDirectActions() {
-		print("Deregister all direct actions");
+		LOGGER.config("Deregister all direct actions");
 
 		_directActions.clear();
 		_directMethods.clear();
@@ -68,47 +170,47 @@ class DirectManager {
 	Future directCall(String base, String path, String json, DirectCallback callback) {
 		Completer completer = new Completer();
 
-		if (path.endsWith("direct/api")) {
-			var domain = path.substring(1, path.length - "direct/api".length);
+		if (path.endsWith("/direct/api")) {
+			var domain = path != "/direct/api" ? path.substring(1, path.length - "/direct/api".length) : "";
 
 			callback(_getDartApi(base, domain, false));
 
 			completer.complete();
-		} else if (path.endsWith("direct")) {
-			var domain = path != "direct" ? path.substring(1, path.length - "direct".length) : "";
+		} else if (path.endsWith("/direct")) {
+			var domain = path != "/direct" ? path.substring(1, path.length - "/direct".length) : "";
 
 			// read parameters
 			var directRequest = JSON.decode(json);
 
 			String action = directRequest["action"];
 			String method = directRequest["method"];
-			int tid = directRequest["tid"];
 			String type = directRequest["type"];
+			int tid = directRequest["tid"];
 
-			var directResponse = {
-				"action": action,
-				"method": method,
-				"tid": tid,
-				"type": type
-			};
+			new Future.sync(() => _invokeDirectService(domain, action, method, type, tid, directRequest["data"])).then((value) {
+				var directResponse = new DirectResultResponse(domain: domain, action: action, method: method, tid: tid, type: type, result: value);
 
-			var result = _invokeDirectService(domain, action, method, directRequest["data"]);
+				callback(JSON.encode(directResponse));
 
-			if (result is! Future) {
-				result = new Future.value(result);
-			}
+				completer.complete();
+			}).catchError((error) {
+				DirectResponse directResponse;
+				if (error is BusinessError) {
+					directResponse = new DirectResultResponse(domain: domain, action: action, method: method, tid: tid, type: type, result: {}, businessError: error);
+				} else {
+					directResponse = new DirectErrorResponse(domain: domain, action: action, method: method, tid: tid, type: "exception", // error: "not_in_role","not_logged"
+					cause: error);
+				}
 
-			// TODO gestione errore
-
-			result.then((value) {
-				directResponse["result"] = value;
+				if (directResponse.isNotifyError) {
+					// TODO log errore
+				}
 
 				callback(JSON.encode(directResponse));
 
 				completer.complete();
 			});
 		} else {
-			// TODO gestione errore
 			completer.completeError("Path not valid: $path");
 		}
 
@@ -165,9 +267,9 @@ class DirectManager {
 		return apiMap;
 	}
 
-	_invokeDirectService(String domain, String action, String method, List<dynamic> data) {
+	_invokeDirectService(String domain, String action, String method, String type, num tid, List<dynamic> data) {
 		DirectRequest directRequest = Registry.lookupObject(DirectRequest);
-		directRequest._registerRequest(domain, action, method, data);
+		directRequest._registerRequest(domain, action, method, type, tid, data);
 
 		InstanceMirror result;
 		var actionType = _directActions[action];
@@ -192,5 +294,5 @@ class DirectHandler {
 
 	Future directCall(String base, String path, String json, DirectCallback callback) => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(base, path, json, callback));
 
-	_scopedCall(ScopeRunnable runnable) => Registry.runInScope(DirectModule.REQUEST, runnable);
+	_scopedCall(ScopeRunnable runnable) => Registry.runInScope(DirectScope.REQUEST, runnable);
 }
