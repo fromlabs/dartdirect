@@ -12,7 +12,12 @@ void initializeClientDirectHandling(Type module, [Map<String, dynamic> parameter
 
 		context["dartApi"] = (dynamic callback) => handler.dartApi.then((api) => callback.apply([api]));
 
-		context["directCall"] = (String base, String path, String jsonRequest, dynamic callback) => handler.directCall(base, path, jsonRequest, (jsonResponse) => callback.apply([jsonResponse]));
+		// TODO recupero gli headers
+		Map<String, List<String>> headers;
+
+		// TODO aggiungere response headers
+
+		context["directCall"] = (String base, String path, String jsonRequest, dynamic callback) => handler.directCall(base, path, jsonRequest, headers, (jsonResponse, responseHeaders) => callback.apply([jsonResponse, responseHeaders]));
 
 		context["onDartLoaded"].apply([]);
 	});

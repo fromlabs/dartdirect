@@ -66,21 +66,31 @@ class DirectRequest extends DirectObject {
 
 	List<dynamic> _data;
 
-	void _registerRequest(String domain, String action, String method, String type, num tid, List<dynamic> data) {
+	Map<String, List<String>> _headers;
+
+	Map<String, List<String>> _responseHeaders;
+
+	void _registerRequest(String domain, String action, String method, String type, num tid, List<dynamic> data, Map<String, List<String>> headers) {
 		_domain = domain;
 		_action = action;
 		_method = method;
 		_type = type;
 		_tid = tid;
 		_data = data;
+		_headers = headers != null ? headers : const {};
+		_responseHeaders = {};
 	}
 
 	List<dynamic> get data => _data;
+
+	Map<String, List<String>> get headers => _headers;
+
+	Map<String, List<String>> get responseHeaders => _responseHeaders;
 }
 
 abstract class DirectResponse extends DirectObject {
 
-	DirectResponse({String domain, String action, String method, String type, num tid}) : super(domain: domain, action: action, method: method, type: type, tid: tid);
+	DirectResponse(DirectRequest directRequest, String type) : super(domain: directRequest.domain, action: directRequest.action, method: directRequest.method, type: type, tid: directRequest.tid);
 
 	bool get isNotifyError => cause != null;
 
@@ -97,7 +107,9 @@ class DirectResultResponse extends DirectResponse {
 
 	final BusinessError businessError;
 
-	DirectResultResponse({this.result, this.locked, this.notifications, this.businessError, String domain, String action, String method, String type, num tid}) : super(domain: domain, action: action, method: method, type: type, tid: tid);
+	DirectResultResponse(DirectRequest directRequest, this.result, [this.locked = false, this.notifications = const {}]) : this.businessError = null, super(directRequest, directRequest.type);
+
+	DirectResultResponse.throwBusinessError(DirectRequest directRequest, this.businessError) : this.result = {}, this.locked = false, this.notifications = {}, super(directRequest, directRequest.type);
 
 	bool get isNotifyError => super.isNotifyError && businessError.notifyToBackend;
 
@@ -118,7 +130,7 @@ class DirectErrorResponse extends DirectResponse {
 
 	final cause;
 
-	DirectErrorResponse({this.error, this.cause, String domain, String action, String method, String type, num tid}) : super(domain: domain, action: action, method: method, type: type, tid: tid);
+	DirectErrorResponse(DirectRequest directRequest, this.cause, [this.error]) : super(directRequest, "exception");
 
 	Map toJson() => super.toJson()..addAll({
 				"success": false,
@@ -167,46 +179,42 @@ class DirectManager {
 
 	String get dartApi => _getDartApi(null, null, true);
 
-	Future directCall(String base, String path, String json, DirectCallback callback) {
+	Future directCall(String base, String path, String json, Map<String, List<String>> headers, DirectCallback callback) {
 		Completer completer = new Completer();
 
 		if (path.endsWith("/direct/api")) {
 			var domain = path != "/direct/api" ? path.substring(1, path.length - "/direct/api".length) : "";
 
-			callback(_getDartApi(base, domain, false));
+			callback(_getDartApi(base, domain, false), {});
 
 			completer.complete();
 		} else if (path.endsWith("/direct")) {
 			var domain = path != "/direct" ? path.substring(1, path.length - "/direct".length) : "";
 
 			// read parameters
-			var directRequest = JSON.decode(json);
+			var decodedDirectRequest = JSON.decode(json);
+			DirectRequest directRequest = Registry.lookupObject(DirectRequest);
+    			directRequest._registerRequest(domain, decodedDirectRequest["action"], decodedDirectRequest["method"], decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], headers);
 
-			String action = directRequest["action"];
-			String method = directRequest["method"];
-			String type = directRequest["type"];
-			int tid = directRequest["tid"];
+    			new Future.sync(() => _invokeDirectService(directRequest)).then((value) {
+				var directResponse = new DirectResultResponse(directRequest, value);
 
-			new Future.sync(() => _invokeDirectService(domain, action, method, type, tid, directRequest["data"])).then((value) {
-				var directResponse = new DirectResultResponse(domain: domain, action: action, method: method, tid: tid, type: type, result: value);
-
-				callback(JSON.encode(directResponse));
+				callback(JSON.encode(directResponse), directRequest.responseHeaders);
 
 				completer.complete();
 			}).catchError((error) {
 				DirectResponse directResponse;
 				if (error is BusinessError) {
-					directResponse = new DirectResultResponse(domain: domain, action: action, method: method, tid: tid, type: type, result: {}, businessError: error);
+					directResponse = new DirectResultResponse.throwBusinessError(directRequest, error);
 				} else {
-					directResponse = new DirectErrorResponse(domain: domain, action: action, method: method, tid: tid, type: "exception", // error: "not_in_role","not_logged"
-					cause: error);
+					directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
 				}
 
 				if (directResponse.isNotifyError) {
 					// TODO log errore
 				}
 
-				callback(JSON.encode(directResponse));
+				callback(JSON.encode(directResponse), {});
 
 				completer.complete();
 			});
@@ -267,19 +275,16 @@ class DirectManager {
 		return apiMap;
 	}
 
-	_invokeDirectService(String domain, String action, String method, String type, num tid, List<dynamic> data) {
-		DirectRequest directRequest = Registry.lookupObject(DirectRequest);
-		directRequest._registerRequest(domain, action, method, type, tid, data);
-
+	_invokeDirectService(DirectRequest request) {
 		InstanceMirror result;
-		var actionType = _directActions[action];
+		var actionType = _directActions[request.action];
 		var service = Registry.lookupObject(actionType);
 		var serviceMirror = reflect(service);
-		MethodMirror methodMirror = _directMethods[action][method];
+		MethodMirror methodMirror = _directMethods[request.action][request.method];
 		if (methodMirror.parameters.isEmpty) {
 			result = serviceMirror.invoke(methodMirror.simpleName, []);
 		} else {
-			result = serviceMirror.invoke(methodMirror.simpleName, data);
+			result = serviceMirror.invoke(methodMirror.simpleName, request.data);
 		}
 
 		return result != null ? result.reflectee : null;
@@ -292,7 +297,7 @@ class DirectHandler {
 
 	Future<String> get dartApi => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
 
-	Future directCall(String base, String path, String json, DirectCallback callback) => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(base, path, json, callback));
+	Future directCall(String base, String path, String json, Map<String, List<String>> headers, DirectCallback callback) => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(base, path, json, headers, callback));
 
 	_scopedCall(ScopeRunnable runnable) => Registry.runInScope(DirectScope.REQUEST, runnable);
 }

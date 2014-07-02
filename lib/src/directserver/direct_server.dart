@@ -13,10 +13,11 @@ class DevDirectIsolateHandler {
 	void handleRequest(dynamic message) {
 		Registry.load(module, parameters).then((_) => Registry.openScope(Scope.ISOLATE)).then((_) {
 			SendPort sendPort = message["sendPort"];
-			return Registry.lookupObject(DirectHandler).directCall(message["base"], message["path"], message["jsonRequest"], (jsonResponse) {
+			return Registry.lookupObject(DirectHandler).directCall(message["base"], message["path"], message["jsonRequest"], message["headers"], (jsonResponse, responseHeaders) {
 				sendPort.send({
 					"action": "write",
-					"jsonResponse": jsonResponse
+					"jsonResponse": jsonResponse,
+					"responseHeaders": responseHeaders
 				});
 				sendPort.send({
 					"action": "close"
@@ -41,16 +42,24 @@ class DevDirectServer extends AbstractDirectServer {
 		receivePort.listen((message) {
 			if (message["action"] == "write") {
 				request.response.headers.contentType = new ContentType("application", "json", charset: "utf-8");
+
+				message["responseHeaders"].forEach((name, value) => request.response.headers.add(name, value));
+
 				request.response.write(message["jsonResponse"]);
 			} else if (message["action"] == "close") {
 				request.response.close();
 			}
 		});
+
+		Map<String, List<String>> headers = {};
+		request.headers.forEach((name, values) => headers[name] = values);
+
 		Isolate.spawnUri(_isolateUri, null, {
 			"sendPort": receivePort.sendPort,
 			"base": base,
 			"path": path,
-			"jsonRequest": jsonRequest
+			"jsonRequest": jsonRequest,
+			"headers": headers
 		});
 	}
 }
@@ -83,8 +92,14 @@ class DirectServer extends AbstractDirectServer {
 	Future _stop() => Registry.closeScope(Scope.ISOLATE).whenComplete(() => Registry.unload());
 
 	void handleRequest(String base, String path, String jsonRequest, HttpRequest request) {
-		Registry.lookupObject(DirectHandler).directCall(base, path, jsonRequest, (jsonResponse) {
+		Map<String, List<String>> headers = {};
+		request.headers.forEach((name, values) => headers[name] = values);
+
+		Registry.lookupObject(DirectHandler).directCall(base, path, jsonRequest, headers, (jsonResponse, responseHeaders) {
 			request.response.headers.contentType = new ContentType("application", "json", charset: "utf-8");
+
+			responseHeaders.forEach((name, value) => request.response.headers.add(name, value));
+
 			request.response.write(jsonResponse);
 			request.response.close();
 		});

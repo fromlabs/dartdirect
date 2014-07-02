@@ -44,7 +44,7 @@ class DirectModule extends RegistryModule {
 	}
 }
 
-typedef void DirectCallback(String jsonResponse);
+typedef void DirectCallback(String jsonResponse, Map<String, List<String>> responseHeaders);
 
 class DirectEnviroment {
 	static const String CLIENT = "CLIENT";
