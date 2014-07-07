@@ -107,9 +107,15 @@ class DirectResultResponse extends DirectResponse {
 
 	final BusinessError businessError;
 
-	DirectResultResponse(DirectRequest directRequest, this.result, [this.locked = false, this.notifications = const {}]) : this.businessError = null, super(directRequest, directRequest.type);
+	DirectResultResponse(DirectRequest directRequest, this.result, [this.locked = false, this.notifications = const {}])
+			: this.businessError = null,
+			  super(directRequest, directRequest.type);
 
-	DirectResultResponse.throwBusinessError(DirectRequest directRequest, this.businessError) : this.result = {}, this.locked = false, this.notifications = {}, super(directRequest, directRequest.type);
+	DirectResultResponse.throwBusinessError(DirectRequest directRequest, this.businessError)
+			: this.result = {},
+			  this.locked = false,
+			  this.notifications = {},
+			  super(directRequest, directRequest.type);
 
 	bool get isNotifyError => super.isNotifyError && businessError.notifyToBackend;
 
@@ -138,6 +144,15 @@ class DirectErrorResponse extends DirectResponse {
 			});
 }
 
+abstract class TransactionHandler {
+
+	Future openTransaction();
+
+	Future commitTransaction();
+
+	Future rollbackTransaction();
+}
+
 class DirectManager {
 	static Logger LOGGER = new Logger(MirrorSystem.getName(reflectType(DirectManager).simpleName));
 
@@ -145,6 +160,9 @@ class DirectManager {
 	Map<String, Map<String, MethodMirror>> _directMethods = {};
 
 	final String enviroment;
+
+	@Inject
+	Provider<TransactionHandler> _TRANSACTION_HANDLER_PROVIDER;
 
 	DirectManager(this.enviroment) {
 		LOGGER.config("Direct Manager registered in $enviroment enviroment");
@@ -194,9 +212,20 @@ class DirectManager {
 			// read parameters
 			var decodedDirectRequest = JSON.decode(json);
 			DirectRequest directRequest = Registry.lookupObject(DirectRequest);
-    			directRequest._registerRequest(domain, decodedDirectRequest["action"], decodedDirectRequest["method"], decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], headers);
+			directRequest._registerRequest(domain, decodedDirectRequest["action"], decodedDirectRequest["method"], decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], headers);
 
-    			new Future.sync(() => _invokeDirectService(directRequest)).then((value) {
+			bool transaction = !directRequest.action.startsWith("get") && !directRequest.action.startsWith("is");
+			new Future.sync(() {
+				if (transaction) {
+					return _openTransaction();
+				}
+			}).then((_) => _invokeDirectService(directRequest)).then((value) {
+				if (transaction) {
+					return _commitTransaction().then((_) => value);
+				} else {
+					return value;
+				}
+			}).then((value) {
 				var directResponse = new DirectResultResponse(directRequest, value);
 
 				callback(JSON.encode(directResponse), directRequest.responseHeaders);
@@ -204,19 +233,34 @@ class DirectManager {
 				completer.complete();
 			}).catchError((error) {
 				DirectResponse directResponse;
-				if (error is BusinessError) {
-					directResponse = new DirectResultResponse.throwBusinessError(directRequest, error);
-				} else {
-					directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
-				}
+				new Future.sync(() {
+					if (error is BusinessError) {
+						directResponse = new DirectResultResponse.throwBusinessError(directRequest, error);
 
-				if (directResponse.isNotifyError) {
-					// TODO log errore
-				}
+						if (error.forceCommit) {
+							if (transaction) {
+								return _commitTransaction();
+							}
+						} else {
+							if (transaction) {
+								return _rollbackTransaction();
+							}
+						}
+					} else {
+						directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
+						if (transaction) {
+							return _rollbackTransaction();
+						}
+					}
+				}).then((_) {
+					if (directResponse.isNotifyError) {
+						// TODO log errore
+					}
 
-				callback(JSON.encode(directResponse), {});
+					callback(JSON.encode(directResponse), {});
 
-				completer.complete();
+					completer.complete();
+				});
 			});
 		} else {
 			completer.completeError("Path not valid: $path");
@@ -224,6 +268,12 @@ class DirectManager {
 
 		return completer.future;
 	}
+
+	Future _openTransaction() => _TRANSACTION_HANDLER_PROVIDER.get().openTransaction();
+
+	Future _commitTransaction() => _TRANSACTION_HANDLER_PROVIDER.get().commitTransaction();
+
+	Future _rollbackTransaction() => _TRANSACTION_HANDLER_PROVIDER.get().rollbackTransaction();
 
 	String _getDartApi(String base, String domain, bool localApi) {
 		StringBuffer buffer = new StringBuffer();

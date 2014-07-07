@@ -4,7 +4,9 @@ part of directbackendapi;
 
 String DIRECT_ENVIROMENT;
 
-class DirectModule extends RegistryModule {
+abstract class DirectModule extends RegistryModule {
+
+	Type get transactionHandlerClazz;
 
 	DirectManager directManager;
 
@@ -12,14 +14,15 @@ class DirectModule extends RegistryModule {
 	Future configure(Map<String, dynamic> parameters) {
 		return super.configure(parameters).then((_) {
 
-			this.directManager = new DirectManager(DIRECT_ENVIROMENT);
-
 			Logger.root.level = Level.ALL;
 			Logger.root.onRecord.listen((LogRecord rec) {
 				print('${rec.level.name}: ${rec.time}: ${rec.message}');
 			});
 			bindProviderFunction(Logger, Scope.ISOLATE, provideLogger);
 
+			bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
+
+			this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 			bindInstance(DirectManager, this.directManager);
 			bindClass(DirectHandler, Scope.ISOLATE);
 
