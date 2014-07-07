@@ -235,6 +235,8 @@ class DirectManager {
 				DirectResponse directResponse;
 				new Future.sync(() {
 					if (error is BusinessError) {
+						LOGGER.info("Business error", error, error is Error ? error.stackTrace : null);
+
 						directResponse = new DirectResultResponse.throwBusinessError(directRequest, error);
 
 						if (error.forceCommit) {
@@ -247,6 +249,8 @@ class DirectManager {
 							}
 						}
 					} else {
+						LOGGER.warning("System error", error, error is Error ? error.stackTrace : null);
+
 						directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
 						if (transaction) {
 							return _rollbackTransaction();
