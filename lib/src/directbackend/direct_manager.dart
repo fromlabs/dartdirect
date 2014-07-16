@@ -26,7 +26,7 @@ class BusinessError extends Error {
 
 abstract class DirectObject {
 
-	String _domain;
+	String _application;
 
 	String _action;
 
@@ -36,14 +36,14 @@ abstract class DirectObject {
 
 	num _tid;
 
-	DirectObject({String domain, String action, String method, String type, num tid})
-			: this._domain = domain,
+	DirectObject({String application, String action, String method, String type, num tid})
+			: this._application = application,
 			  this._action = action,
 			  this._method = method,
 			  this._type = type,
 			  this._tid = tid;
 
-	String get domain => _domain;
+	String get application => _application;
 
 	String get action => _action;
 
@@ -54,7 +54,7 @@ abstract class DirectObject {
 	num get tid => _tid;
 
 	Map toJson() => {
-		"domain": domain,
+		"application": application,
 		"action": _action,
 		"method": _method,
 		"type": _type,
@@ -70,13 +70,17 @@ class DirectRequest extends DirectObject {
 
 	Map<String, List<String>> _responseHeaders;
 
-	void _registerRequest(String domain, String action, String method, String type, num tid, List<dynamic> data, Map<String, List<String>> headers) {
-		_domain = domain;
+	void _registerRequest(String application, String action, String method, String type, num tid, List<dynamic> data, MultipartRequest multipartRequest, Map<String, List<String>> headers) {
+		_application = application;
 		_action = action;
 		_method = method;
 		_type = type;
 		_tid = tid;
-		_data = data;
+		if (multipartRequest != null) {
+			_data = [multipartRequest];
+		} else {
+			_data = data;
+		}
 		_headers = headers != null ? headers : const {};
 		_responseHeaders = {};
 	}
@@ -90,7 +94,7 @@ class DirectRequest extends DirectObject {
 
 abstract class DirectResponse extends DirectObject {
 
-	DirectResponse(DirectRequest directRequest, String type) : super(domain: directRequest.domain, action: directRequest.action, method: directRequest.method, type: type, tid: directRequest.tid);
+	DirectResponse(DirectRequest directRequest, String type) : super(application: directRequest.application, action: directRequest.action, method: directRequest.method, type: type, tid: directRequest.tid);
 
 	bool get isNotifyError => cause != null;
 
@@ -197,22 +201,20 @@ class DirectManager {
 
 	String get dartApi => _getDartApi(null, null, true);
 
-	Future directCall(String base, String path, String json, Map<String, List<String>> headers, DirectCallback callback) {
+	Future directCall(DirectCall directCall) => directCall.onRequest(directCallInternal);
+
+	Future directCallInternal(String base, String application, String path, String json, Map<String, List<String>> headers, MultipartRequest multipartRequest, DirectCallback callback) {
 		Completer completer = new Completer();
 
-		if (path.endsWith("/direct/api")) {
-			var domain = path != "/direct/api" ? path.substring(1, path.length - "/direct/api".length) : "";
-
-			callback(_getDartApi(base, domain, false), {});
+		if (path == "/direct/api") {
+			callback(_getDartApi(base, application, false), {});
 
 			completer.complete();
-		} else if (path.endsWith("/direct")) {
-			var domain = path != "/direct" ? path.substring(1, path.length - "/direct".length) : "";
-
+		} else {
 			// read parameters
 			var decodedDirectRequest = JSON.decode(json);
 			DirectRequest directRequest = Registry.lookupObject(DirectRequest);
-			directRequest._registerRequest(domain, decodedDirectRequest["action"], decodedDirectRequest["method"], decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], headers);
+			directRequest._registerRequest(application, decodedDirectRequest["action"], decodedDirectRequest["method"], decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], multipartRequest, headers);
 
 			bool transaction = !directRequest.action.startsWith("get") && !directRequest.action.startsWith("is");
 			new Future.sync(() {
@@ -266,8 +268,6 @@ class DirectManager {
 					completer.complete();
 				});
 			});
-		} else {
-			completer.completeError("Path not valid: $path");
 		}
 
 		return completer.future;
@@ -279,13 +279,13 @@ class DirectManager {
 
 	Future _rollbackTransaction() => _TRANSACTION_HANDLER_PROVIDER.get().rollbackTransaction();
 
-	String _getDartApi(String base, String domain, bool localApi) {
+	String _getDartApi(String base, String application, bool localApi) {
 		StringBuffer buffer = new StringBuffer();
 
 		buffer.write("var remotingApi = ");
 
 		buffer
-				..write(JSON.encode(_getDirectApiMap(base, domain, localApi)))
+				..write(JSON.encode(_getDirectApiMap(base, application, localApi)))
 				..write(";")
 				..write("\r\n");
 
@@ -295,16 +295,16 @@ class DirectManager {
 		return buffer.toString();
 	}
 
-	Map<String, dynamic> _getDirectApiMap(String base, String domain, bool localApi) {
+	Map<String, dynamic> _getDirectApiMap(String base, String application, bool localApi) {
 		Map<String, dynamic> apiMap = {};
 
 		StringBuffer url = new StringBuffer();
 		if (base != null) {
-			url.write("base/");
+			url.write("$base/");
 		}
 		url.write("direct");
 
-		apiMap["domain"] = domain;
+		apiMap["application"] = application;
 		apiMap["url"] = url.toString();
 		apiMap["type"] = localApi ? "dart" : "remoting";
 		apiMap["maxRetries"] = "0";
@@ -351,7 +351,7 @@ class DirectHandler {
 
 	Future<String> get dartApi => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
 
-	Future directCall(String base, String path, String json, Map<String, List<String>> headers, DirectCallback callback) => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(base, path, json, headers, callback));
+	Future directCall(DirectCall directCall) => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(directCall));
 
 	_scopedCall(ScopeRunnable runnable) => Registry.runInScope(DirectScope.REQUEST, runnable);
 }

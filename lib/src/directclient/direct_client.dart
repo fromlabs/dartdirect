@@ -17,7 +17,7 @@ void initializeClientDirectHandling(Type module, [Map<String, dynamic> parameter
 
 		// TODO aggiungere response headers
 
-		context["directCall"] = (String base, String path, String jsonRequest, dynamic callback) => handler.directCall(base, path, jsonRequest, headers, (jsonResponse, responseHeaders) => callback.apply([jsonResponse, responseHeaders]));
+		context["directCall"] = (String base, String application, String path, String jsonRequest, dynamic callback) => handler.directCall(base, application, path, jsonRequest, headers, (jsonResponse, responseHeaders) => callback.apply([jsonResponse, responseHeaders]));
 
 		context["onDartLoaded"].apply([]);
 	});

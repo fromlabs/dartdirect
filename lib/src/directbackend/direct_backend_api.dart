@@ -82,10 +82,43 @@ class PagedList<T> {
 	}
 }
 
+abstract class MultipartRequest {
+
+	Map<String, List<RequestParameter>> get parameters;
+
+	RequestProgress get progress;
+
+	Future get future;
+
+	void onProgress(progressHandler(RequestProgress progress, bool closed));
+
+	void onUploadParameter(parameterHandler(RequestParameter parameter));
+}
+
+abstract class RequestParameter {
+	bool get isUpload;
+
+	String get name;
+
+	String get value;
+
+	void onChunk(chunkHandler(List<int> chunk, bool closed));
+}
+
+abstract class RequestProgress {
+	int get value;
+
+	int get total;
+}
+
 class _DirectAction {
 	const _DirectAction();
 }
 
 class _DirectMethod {
 	const _DirectMethod();
+}
+
+abstract class DirectCall {
+  Future onRequest(Future directCall(String base, String application, String path, String json, Map<String, List<String>> headers, MultipartRequest multipartRequest, DirectCallback callback));
 }

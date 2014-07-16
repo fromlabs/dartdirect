@@ -9,5 +9,7 @@ import "dart:io";
 import "dart:isolate";
 import "dart:convert";
 import 'dart:async';
+import 'dart:collection';
 
 part "src/directserver/direct_server.dart";
+part "src/directserver/multipart_parser.dart";
