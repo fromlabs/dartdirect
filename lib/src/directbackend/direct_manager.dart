@@ -1,5 +1,11 @@
 part of directbackendapi;
 
+const Object OnDirectRequestRegistered = const _OnDirectRequestRegistered();
+
+class _OnDirectRequestRegistered {
+	const _OnDirectRequestRegistered();
+}
+
 class DirectScope extends Scope {
 
 	static const Scope REQUEST = const Scope("DIRECT_REQUEST");
@@ -70,7 +76,7 @@ class DirectRequest extends DirectObject {
 
 	Map<String, List<String>> _responseHeaders;
 
-	void _registerRequest(String application, String action, String method, String type, num tid, List<dynamic> data, MultipartRequest multipartRequest, Map<String, List<String>> headers) {
+	Future _registerRequest(String application, String action, String method, String type, num tid, List<dynamic> data, MultipartRequest multipartRequest, Map<String, List<String>> headers) {
 		_application = application;
 		_action = action;
 		_method = method;
@@ -83,6 +89,8 @@ class DirectRequest extends DirectObject {
 		}
 		_headers = headers != null ? headers : const {};
 		_responseHeaders = {};
+
+		return _notifyDirectRequestRegisteredListeners();
 	}
 
 	List<dynamic> get data => _data;
@@ -90,6 +98,10 @@ class DirectRequest extends DirectObject {
 	Map<String, List<String>> get headers => _headers;
 
 	Map<String, List<String>> get responseHeaders => _responseHeaders;
+
+	Future onDirectRequestRegisteredInternal() => new Future.value();
+
+	Future _notifyDirectRequestRegisteredListeners() => Registry.notifyListeners(DirectScope.REQUEST, OnDirectRequestRegistered, false);
 }
 
 abstract class DirectResponse extends DirectObject {
@@ -105,20 +117,14 @@ class DirectResultResponse extends DirectResponse {
 
 	final result;
 
-	final bool locked;
-
-	final Map<String, dynamic> notifications;
-
 	final BusinessError businessError;
 
-	DirectResultResponse(DirectRequest directRequest, this.result, [this.locked = false, this.notifications = const {}])
+	DirectResultResponse(DirectRequest directRequest, this.result)
 			: this.businessError = null,
 			  super(directRequest, directRequest.type);
 
 	DirectResultResponse.throwBusinessError(DirectRequest directRequest, this.businessError)
 			: this.result = {},
-			  this.locked = false,
-			  this.notifications = {},
 			  super(directRequest, directRequest.type);
 
 	bool get isNotifyError => super.isNotifyError && businessError.notifyToBackend;
@@ -128,9 +134,7 @@ class DirectResultResponse extends DirectResponse {
 	Map toJson() => super.toJson()..addAll({
 				"success": true,
 				"result": result,
-				"businessError": businessError,
-				"locked": locked,
-				"notifications": notifications
+				"businessError": businessError
 			});
 }
 
@@ -214,10 +218,9 @@ class DirectManager {
 			// read parameters
 			var decodedDirectRequest = JSON.decode(json);
 			DirectRequest directRequest = Registry.lookupObject(DirectRequest);
-			directRequest._registerRequest(application, decodedDirectRequest["action"], decodedDirectRequest["method"], decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], multipartRequest, headers);
-
-			bool transaction = !directRequest.action.startsWith("get") && !directRequest.action.startsWith("is");
-			new Future.sync(() {
+			bool transaction = !decodedDirectRequest["action"].startsWith("get") && !decodedDirectRequest["action"].startsWith("is");
+			directRequest._registerRequest(application, decodedDirectRequest["action"], decodedDirectRequest["method"], decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], multipartRequest, headers)
+			.then((_) {
 				if (transaction) {
 					return _openTransaction();
 				}
