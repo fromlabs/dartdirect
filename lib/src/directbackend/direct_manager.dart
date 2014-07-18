@@ -285,7 +285,7 @@ class DirectManager {
 		buffer.write("var remotingApi = ");
 
 		buffer
-				..write(JSON.encode(_getDirectApiMap(base, application, localApi)))
+				..write(new JsonEncoder.withIndent("  ").convert(_getDirectApiMap(base, application, localApi)))
 				..write(";")
 				..write("\r\n");
 
