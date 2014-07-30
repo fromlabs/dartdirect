@@ -76,7 +76,8 @@ class DirectRequest extends DirectObject {
 
 	Map<String, List<String>> _responseHeaders;
 
-	Future _registerRequest(String application, String action, String method, String type, num tid, List<dynamic> data, MultipartRequest multipartRequest, Map<String, List<String>> headers) {
+	Future _registerRequest(String application, String action, String method, String type, num tid, List<dynamic> data,
+			MultipartRequest multipartRequest, Map<String, List<String>> headers) {
 		_application = application;
 		_action = action;
 		_method = method;
@@ -101,12 +102,18 @@ class DirectRequest extends DirectObject {
 
 	Future onDirectRequestRegisteredInternal() => new Future.value();
 
-	Future _notifyDirectRequestRegisteredListeners() => Registry.notifyListeners(DirectScope.REQUEST, OnDirectRequestRegistered, false);
+	Future _notifyDirectRequestRegisteredListeners() =>
+			Registry.notifyListeners(DirectScope.REQUEST, OnDirectRequestRegistered, false);
 }
 
 abstract class DirectResponse extends DirectObject {
 
-	DirectResponse(DirectRequest directRequest, String type) : super(application: directRequest.application, action: directRequest.action, method: directRequest.method, type: type, tid: directRequest.tid);
+	DirectResponse(DirectRequest directRequest, String type) : super(
+			application: directRequest.application,
+			action: directRequest.action,
+			method: directRequest.method,
+			type: type,
+			tid: directRequest.tid);
 
 	bool get isNotifyError => cause != null;
 
@@ -207,7 +214,8 @@ class DirectManager {
 
 	Future directCall(DirectCall directCall) => directCall.onRequest(directCallInternal);
 
-	Future directCallInternal(String base, String application, String path, String json, Map<String, List<String>> headers, MultipartRequest multipartRequest, DirectCallback callback) {
+	Future directCallInternal(String base, String application, String path, String json, Map<String, List<String>> headers,
+			MultipartRequest multipartRequest, DirectCallback callback) {
 		Completer completer = new Completer();
 
 		if (path == "/direct/api") {
@@ -218,9 +226,18 @@ class DirectManager {
 			// read parameters
 			var decodedDirectRequest = JSON.decode(json);
 			DirectRequest directRequest = Registry.lookupObject(DirectRequest);
-			bool transaction = !decodedDirectRequest["action"].startsWith("get") && !decodedDirectRequest["action"].startsWith("is");
-			directRequest._registerRequest(application, decodedDirectRequest["action"], decodedDirectRequest["method"], decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], multipartRequest, headers)
-			.then((_) {
+			bool transaction =
+					!decodedDirectRequest["action"].startsWith("get") &&
+					!decodedDirectRequest["action"].startsWith("is");
+			directRequest._registerRequest(
+					application,
+					decodedDirectRequest["action"],
+					decodedDirectRequest["method"],
+					decodedDirectRequest["type"],
+					decodedDirectRequest["tid"],
+					decodedDirectRequest["data"],
+					multipartRequest,
+					headers).then((_) {
 				if (transaction) {
 					return _openTransaction();
 				}
@@ -241,24 +258,30 @@ class DirectManager {
 				new Future.sync(() {
 					if (error is BusinessError) {
 						LOGGER.info("Business error", error, error is Error ? error.stackTrace : null);
-
 						directResponse = new DirectResultResponse.throwBusinessError(directRequest, error);
 
 						if (error.forceCommit) {
 							if (transaction) {
-								return _commitTransaction();
+								return _commitTransaction().catchError((error) {
+									LOGGER.severe("Commit error", error, error is Error ? error.stackTrace : null);
+									directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
+								});
 							}
 						} else {
 							if (transaction) {
-								return _rollbackTransaction();
+								return _rollbackTransaction().catchError((error) {
+									LOGGER.severe("Rollback error", error, error is Error ? error.stackTrace : null);
+								});
 							}
 						}
 					} else {
-						LOGGER.warning("System error", error, error is Error ? error.stackTrace : null);
+						LOGGER.severe("System error", error, error is Error ? error.stackTrace : null);
 
 						directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
 						if (transaction) {
-							return _rollbackTransaction();
+							return _rollbackTransaction().catchError((error) {
+								LOGGER.severe("Rollback error", error, error is Error ? error.stackTrace : null);
+							});
 						}
 					}
 				}).then((_) {
@@ -350,11 +373,13 @@ class DirectManager {
 
 class DirectHandler {
 
-	static ProviderFunction<DirectManager> _DIRECT_MANAGER_SERVICE_PROVIDER = Registry.lookupProviderFunction(DirectManager);
+	static ProviderFunction<DirectManager> _DIRECT_MANAGER_SERVICE_PROVIDER =
+			Registry.lookupProviderFunction(DirectManager);
 
 	Future<String> get dartApi => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
 
-	Future directCall(DirectCall directCall) => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(directCall));
+	Future directCall(DirectCall directCall) =>
+			_scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(directCall));
 
 	_scopedCall(ScopeRunnable runnable) => Registry.runInScope(DirectScope.REQUEST, runnable);
 }
