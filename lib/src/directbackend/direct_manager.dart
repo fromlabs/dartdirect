@@ -378,10 +378,15 @@ class DirectManager {
 	_invokeDirectService(DirectRequest request) {
 		InstanceMirror result;
 		var actionType = _directActions[request.action];
+		if (actionType == null) {
+			throw new ArgumentError("Direct action not defined: ${request.action}");
+		}
 		var service = Registry.lookupObject(actionType);
 		var serviceMirror = reflect(service);
 		MethodMirror methodMirror = _directMethods[request.action][request.method];
-		if (methodMirror.parameters.isEmpty) {
+		if (methodMirror == null) {
+        			throw new ArgumentError("Direct method not defined: ${request.action}.${request.method}");
+		} else if (methodMirror.parameters.isEmpty) {
 			result = serviceMirror.invoke(methodMirror.simpleName, []);
 		} else {
 			result = serviceMirror.invoke(methodMirror.simpleName, request.data);
