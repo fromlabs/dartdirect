@@ -98,6 +98,26 @@ class DirectRequest extends DirectObject {
 
 	Map<String, List<String>> get headers => _headers;
 
+	String getHeaderString(String name) {
+		var values = headers[name];
+		if (values != null) {
+			if (values.isNotEmpty) {
+				if (values[0] != null &&  values[0].isNotEmpty) {
+					return values[0];
+				}
+			}
+		}
+		return null;
+	}
+
+	num getHeaderNumber(String name) {
+		var s = getHeaderString(name);
+
+		print(s);
+
+		return s != null ? num.parse(s) : null;
+	}
+
 	Map<String, List<String>> get responseHeaders => _responseHeaders;
 
 	Future onDirectRequestRegisteredInternal() => new Future.value();
