@@ -289,6 +289,8 @@ class DirectFilter {
 
 	String get stringValue => _dataValue;
 
+	String toString() => "$field $dataComparator $dataValue";
+
 /*
   num get doubleValue => _dataValue;
 
