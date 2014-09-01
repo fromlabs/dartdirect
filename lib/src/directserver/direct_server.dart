@@ -196,7 +196,7 @@ abstract class AbstractDirectServer {
 						final File file = new File(absolutePath);
 						file.exists().then((bool found) {
 							if (found) {
-								var mimeType = lookupMimeType(path.split("\\.").last);
+								var mimeType = lookupMimeType(absolutePath.split("\\.").last);
 								if (mimeType != null) {
 									var split = mimeType.split("/");
 									request.response.headers.contentType = new ContentType(split[0], split[1]);
