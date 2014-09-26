@@ -114,9 +114,6 @@ class DirectRequest extends DirectObject {
 
   num getHeaderNumber(String name) {
     var s = getHeaderString(name);
-
-    print(s);
-
     return s != null ? num.parse(s) : null;
   }
 
