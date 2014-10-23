@@ -141,6 +141,8 @@ abstract class AbstractDirectServer {
       print(
           "Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
 
+      server.autoCompress = true;
+
       server.listen((HttpRequest request) {
         // request.response.headers.add("Access-Control-Allow-Origin", "*");
 
