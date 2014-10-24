@@ -146,8 +146,10 @@ abstract class AbstractDirectServer {
       server.listen((HttpRequest request) {
         // request.response.headers.add("Access-Control-Allow-Origin", "*");
 
-            // request.response.headers.add("Access-Control-Allow-Headers", "X-Requested-With,Content-Type");
+        // request.response.headers.add("Access-Control-Allow-Headers", "X-Requested-With,Content-Type");
         // request.response.headers.set("Access-Control-Allow-Methods", "POST");
+
+        request.response.headers.remove("X-Frame-Options", "SAMEORIGIN");
 
         if (request.method == "OPTIONS") {
           request.response.close();
