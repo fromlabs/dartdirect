@@ -36,7 +36,7 @@ class DevDirectServer extends AbstractDirectServer {
 
   DevDirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri,
       Uri isolateUri})
-      : super(host: host, port: port, webUri: webUri),
+      : super(host: host, port: port, webUri: webUri, autoCompress: false),
         this._isolateUri = isolateUri;
 
   void handleRequest(String base, String application, String path,
@@ -127,11 +127,14 @@ abstract class AbstractDirectServer {
   final num _port;
 
   final Uri _webUri;
+  
+  final bool _autoCompress;
 
-  AbstractDirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri})
+  AbstractDirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri, bool autoCompress: true})
       : this._webUri = webUri,
         this._host = host,
-        this._port = port;
+        this._port = port,
+        this._autoCompress = autoCompress;
 
   void handleRequest(String base, String application, String path,
       HttpRequest request);
@@ -141,7 +144,7 @@ abstract class AbstractDirectServer {
       print(
           "Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
 
-      server.autoCompress = true;
+      server.autoCompress = this._autoCompress;
 
       server.defaultResponseHeaders.removeAll("X-Frame-Options");
       
