@@ -7,8 +7,7 @@ environment:
   sdk: '>=1.0.0 <2.0.0'
 dependencies:
   dartregistry:
-    git:
-      url: https://github.com/fromlabs/dartregistry
+    git: https://github.com/fromlabs/dartregistry
   intl: any
   logging: any
   mime: any
