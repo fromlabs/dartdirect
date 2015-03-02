@@ -192,8 +192,7 @@ abstract class TransactionHandler {
 }
 
 class DirectManager {
-  static Logger LOGGER =
-      new Logger(MirrorSystem.getName(reflectType(DirectManager).simpleName));
+  static Logger LOGGER = new Logger("DirectManager");
 
   Map<String, Type> _directActions = {};
   Map<String, Map<String, MethodMirror>> _directMethods = {};

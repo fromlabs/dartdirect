@@ -33,11 +33,12 @@ class DevDirectIsolateHandler {
 class DevDirectServer extends AbstractDirectServer {
 
   final Uri _isolateUri;
+  final List<String> _isolateArgs;
 
   DevDirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri,
-      Uri isolateUri})
+      Uri isolateUri, List<String> isolateArgs})
       : super(host: host, port: port, webUri: webUri, autoCompress: false),
-        this._isolateUri = isolateUri;
+        this._isolateUri = isolateUri, this._isolateArgs = isolateArgs;
 
   void handleRequest(String base, String application, String path,
       HttpRequest request) {
@@ -66,7 +67,7 @@ class DevDirectServer extends AbstractDirectServer {
     Map<String, List<String>> headers = {};
     request.headers.forEach((name, values) => headers[name] = values);
 
-    Isolate.spawnUri(_isolateUri, null, {
+    Isolate.spawnUri(_isolateUri, _isolateArgs, {
       "sendPort": receivePort.sendPort,
       "base": base,
       "application": application,
@@ -127,7 +128,7 @@ abstract class AbstractDirectServer {
   final num _port;
 
   final Uri _webUri;
-  
+
   final bool _autoCompress;
 
   AbstractDirectServer({String host: "0.0.0.0", num port: 8081, Uri webUri, bool autoCompress: true})
@@ -147,7 +148,7 @@ abstract class AbstractDirectServer {
       server.autoCompress = this._autoCompress;
 
       server.defaultResponseHeaders.removeAll("X-Frame-Options");
-      
+
       server.listen((HttpRequest request) {
         // request.response.headers.add("Access-Control-Allow-Origin", "*");
         // request.response.headers.add("Access-Control-Allow-Headers", "X-Requested-With,Content-Type");
