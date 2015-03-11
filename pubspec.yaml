@@ -6,10 +6,10 @@ homepage: https://github.com/fromlabs/dartdirect
 environment:
   sdk: '>=1.0.0 <2.0.0'
 dependencies:
-  intl: any
-  logging: any
-  mime: any
   dartregistry:
     git:
       ref: 1.1.1
       url: https://github.com/fromlabs/dartregistry
+  intl: any
+  logging: any
+  mime: any
