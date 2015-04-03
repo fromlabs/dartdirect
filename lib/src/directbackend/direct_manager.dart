@@ -191,6 +191,11 @@ abstract class TransactionHandler {
   Future rollbackTransaction();
 }
 
+abstract class RequestInterceptorHandler {
+
+  Future requestBegin();
+}
+
 class DirectManager {
   static Logger LOGGER = new Logger("DirectManager");
 
@@ -201,6 +206,9 @@ class DirectManager {
 
   @Inject
   Provider<TransactionHandler> _TRANSACTION_HANDLER_PROVIDER;
+
+  @Inject
+  Provider<RequestInterceptorHandler> _REQUEST_INTERCEPTOR_HANDLER_PROVIDER;
 
   DirectManager(this.enviroment) {
     LOGGER.config("Direct Manager registered in $enviroment enviroment");
@@ -265,9 +273,14 @@ class DirectManager {
           decodedDirectRequest["data"],
           multipartRequest,
           headers).then((_) {
-        if (transaction) {
-          return _openTransaction();
-        }
+
+        return _interceptRequestBegin().then((_) {
+
+          if (transaction) {
+            return _openTransaction();
+          }
+        });
+
       }).then((_) => _invokeDirectService(directRequest)).then((value) {
         if (transaction) {
           return _commitTransaction().then((_) => value);
@@ -354,6 +367,10 @@ class DirectManager {
 
   Future _rollbackTransaction() =>
       _TRANSACTION_HANDLER_PROVIDER.get().rollbackTransaction();
+
+  Future _interceptRequestBegin() =>
+      _REQUEST_INTERCEPTOR_HANDLER_PROVIDER.get().requestBegin();
+
 
   String _getDartApi(String base, String application, bool localApi) {
     StringBuffer buffer = new StringBuffer();

@@ -8,6 +8,8 @@ abstract class DirectModule extends RegistryModule {
 
   Type get transactionHandlerClazz;
 
+  Type get requestInterceptorHandlerClazz;
+
   DirectManager directManager;
 
   @override
@@ -27,6 +29,8 @@ abstract class DirectModule extends RegistryModule {
       bindProviderFunction(Logger, Scope.ISOLATE, provideLogger);
 
       bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
+
+      bindClass(RequestInterceptorHandler, Scope.ISOLATE, requestInterceptorHandlerClazz);
 
       this.directManager = new DirectManager(DIRECT_ENVIROMENT);
       bindInstance(DirectManager, this.directManager);
