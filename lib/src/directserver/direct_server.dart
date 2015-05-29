@@ -122,6 +122,7 @@ class DirectServer extends AbstractDirectServer {
 }
 
 abstract class AbstractDirectServer {
+  static Logger LOGGER = new Logger("directserver");
 
   final String _host;
 
@@ -217,7 +218,7 @@ abstract class AbstractDirectServer {
 						});
 */
           } else {
-            print("Serving static request: ${request.uri}");
+            LOGGER.fine("Serving static request: ${request.uri}");
 
             String path = "/" + request.uri.pathSegments.join("/");
             var absolutePath = _webUri.path + path;
