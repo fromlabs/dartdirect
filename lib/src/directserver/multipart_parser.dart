@@ -365,8 +365,8 @@ class MultipartRequestImpl implements MultipartRequest {
         () => _parameterController.close()).whenComplete(() {
       Future.forEach(_allFutures, (future) => future).then((_) {
         _completer.complete();
-      }).catchError((error) {
-        _completer.completeError(error);
+      }).catchError((error, stacktrace) {
+        _completer.completeError(error, stacktrace);
       });
     });
   }
@@ -538,9 +538,9 @@ class FutureQueue<T> {
     _closed = true;
     _future.then((_) => _computation([], true)).then((_) {
       _completer.complete();
-    }).catchError((error) {
+    }).catchError((error, stacktrace) {
       print("Errore sulla close");
-      _completer.completeError(error);
+      _completer.completeError(error, stacktrace);
     });
     return future;
   }

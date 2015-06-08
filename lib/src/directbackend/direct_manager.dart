@@ -251,34 +251,34 @@ class DirectManager {
         callback(JSON.encode(directResponse), directRequest.responseHeaders);
 
         completer.complete();
-      }).catchError((error) {
+      }).catchError((error, stacktrace) {
         DirectResponse directResponse;
         new Future.sync(() {
           if (error is BusinessError) {
-            LOGGER.info("Business error", error, error is Error ? error.stackTrace : null);
+            LOGGER.info("Business error", error, stacktrace);
             directResponse = new DirectResultResponse.throwBusinessError(directRequest, error);
 
             if (error.forceCommit) {
               if (transaction) {
-                return _commitTransaction().catchError((error) {
-                  LOGGER.severe("Commit error", error, error is Error ? error.stackTrace : null);
+                return _commitTransaction().catchError((error, stacktrace) {
+                  LOGGER.severe("Commit error", error, stacktrace);
                   directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
                 });
               }
             } else {
               if (transaction) {
-                return _rollbackTransaction().catchError((error) {
-                  LOGGER.severe("Rollback error", error, error is Error ? error.stackTrace : null);
+                return _rollbackTransaction().catchError((error, stacktrace) {
+                  LOGGER.severe("Rollback error", error, stacktrace);
                 });
               }
             }
           } else {
-            LOGGER.severe("System error", error, error is Error ? error.stackTrace : null);
+            LOGGER.severe("System error", error, stacktrace);
 
             directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
             if (transaction) {
-              return _rollbackTransaction().catchError((error) {
-                LOGGER.severe("Rollback error", error, error is Error ? error.stackTrace : null);
+              return _rollbackTransaction().catchError((error, stacktrace) {
+                LOGGER.severe("Rollback error", error, stacktrace);
               });
             }
           }

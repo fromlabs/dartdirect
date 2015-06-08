@@ -20,11 +20,9 @@ class DevDirectIsolateHandler {
                         (_) =>
                             Registry.lookupObject(
                                 DirectHandler).directCall(
-                                    new DevServerDirectCall(message))).catchError((error) {
+                                    new DevServerDirectCall(message))).catchError((error, stacktrace) {
       print("Gestire errore generico: $error");
-      if (error is Error) {
-        print(error.stackTrace);
-      }
+      print(stackTrace);
     }).whenComplete(
         () => Registry.closeScope(Scope.ISOLATE)).whenComplete(() => Registry.unload());
   }
@@ -333,7 +331,7 @@ class ServerDirectCall implements DirectCall {
         }
       }).then(
           (_) =>
-              completer.complete()).catchError((error) => completer.completeError(error));
+              completer.complete()).catchError((error, stacktrace) => completer.completeError(error, stacktrace));
     });
 
     return completer.future;
@@ -428,8 +426,8 @@ class DevServerDirectCall implements DirectCall {
           }
         }).then((_) {
           completer.complete();
-        }).catchError((error) {
-          completer.completeError(error);
+        }).catchError((error, stacktrace) {
+          completer.completeError(error, stacktrace);
         }).whenComplete(() {
           receivePort.close();
         });

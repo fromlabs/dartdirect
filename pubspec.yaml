@@ -8,7 +8,7 @@ environment:
 dependencies:
   dartregistry:
     git:
-      ref: 1.2.0
+      ref: 1.2.1
       url: http://github.com/fromlabs/dartregistry
   intl: '>=0.12.4 <0.13.0'
   logging: '>=0.11.0 <0.12.0'
