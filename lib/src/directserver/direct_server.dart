@@ -22,7 +22,7 @@ class DevDirectIsolateHandler {
                                 DirectHandler).directCall(
                                     new DevServerDirectCall(message))).catchError((error, stacktrace) {
       print("Gestire errore generico: $error");
-      print(stackTrace);
+      print(stacktrace);
     }).whenComplete(
         () => Registry.closeScope(Scope.ISOLATE)).whenComplete(() => Registry.unload());
   }
@@ -110,8 +110,6 @@ class DirectServer extends AbstractDirectServer {
 
   void handleRequest(String base, String application, String path,
       HttpRequest request) {
-    Map<String, List<String>> headers = {};
-    request.headers.forEach((name, values) => headers[name] = values);
 
     Registry.lookupObject(
         DirectHandler).directCall(

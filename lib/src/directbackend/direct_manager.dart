@@ -226,9 +226,11 @@ class DirectManager {
     } else {
       // read parameters
       var decodedDirectRequest = JSON.decode(json);
+
       DirectRequest directRequest = Registry.lookupObject(DirectRequest);
       bool transaction =
-          !decodedDirectRequest["action"].startsWith("get") && !decodedDirectRequest["action"].startsWith("is");
+          !decodedDirectRequest["method"].startsWith("get") && !decodedDirectRequest["method"].startsWith("is");
+
       directRequest
           ._registerRequest(application, decodedDirectRequest["action"], decodedDirectRequest["method"],
               decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], multipartRequest,
@@ -251,7 +253,7 @@ class DirectManager {
         callback(JSON.encode(directResponse), directRequest.responseHeaders);
 
         completer.complete();
-      }).catchError((error, stacktrace) {
+      }).catchError((error, stacktrace)
         DirectResponse directResponse;
         new Future.sync(() {
           if (error is BusinessError) {
