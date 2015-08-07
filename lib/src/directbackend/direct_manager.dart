@@ -253,7 +253,7 @@ class DirectManager {
         callback(JSON.encode(directResponse), directRequest.responseHeaders);
 
         completer.complete();
-      }).catchError((error, stacktrace)
+      }).catchError((error, stacktrace) {
         DirectResponse directResponse;
         new Future.sync(() {
           if (error is BusinessError) {
