@@ -7,7 +7,7 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 
-@MirrorsUsed(targets: "directbackendapi")
+@MirrorsUsed(targets: "directbackendapi", override: "*")
 import "dart:mirrors";
 
 part "src/directbackend/direct_backend_api.dart";
