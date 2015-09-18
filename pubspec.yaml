@@ -1,16 +1,16 @@
 name: dartdirect
-version: 1.4.0
+version: 1.4.1
 author: Roberto Tassi <roberto.tassi@fromlabs.org>
 description: Tools and packages for implementing a backend accessible from ExtJs Direct.
 homepage: https://github.com/fromlabs/dartdirect
 environment:
-  sdk: '>=1.0.0 <2.0.0'
+  sdk: ">=1.0.0 <2.0.0"
 dependencies:
   dartregistry:
-    version: ">=1.2.1 <2.0.0"
+    version: ">=1.2.5 <2.0.0"
     hosted:
       name: dartregistry
       url: http://pub.primeapp.it:9091
-  intl: '>=0.12.4 <0.13.0'
-  logging: '>=0.11.0 <0.12.0'
-  mime: '>=0.9.3 <0.10.0'
+  intl: ">=0.12.4 <0.13.0"
+  logging: ">=0.11.0 <0.12.0"
+  mime: ">=0.9.3 <0.10.0"
