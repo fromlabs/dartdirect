@@ -198,18 +198,27 @@ abstract class AbstractDirectServer {
           }
 
           if (domain != null) {
-            bool directApi = requestUri.endsWith("/direct/api");
-            bool directRequest =
-                directApi || requestUri.endsWith("/direct");
+            bool directRequest;
+            var parts = requestUri.split("/");
+            if (parts.length > 2 && parts[2] == "direct") {
+              directRequest = true;
+            } else if (parts.length > 1 && parts[1] == "direct") {
+              directRequest = true;
+            } else {
+              directRequest = false;
+            }
 
             if (directRequest) {
+              var directUri = requestUri;
               if (application == null) {
                 var i = requestUri.indexOf("/direct");
                 application = i > -1
                   ? requestUri.substring(0, i)
                   : null; // non obbligatorio
+                directUri = requestUri.substring(i);
               }
 
+              bool directApi = requestUri.endsWith("/direct/api");
               if (directApi) {
                 request.response.headers.contentType = new ContentType(
                     "application", "javascript",
@@ -220,7 +229,7 @@ abstract class AbstractDirectServer {
                 request.response.headers.contentType =
                     new ContentType("application", "json", charset: "utf-8");
 
-                handleRequest(null, domain, application, "/direct", request);
+                handleRequest(null, domain, application, directUri, request);
               }
             } else {
               LOGGER.fine("Serving static request: ${requestUri}");
