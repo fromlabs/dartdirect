@@ -32,10 +32,11 @@ class DevDirectServer extends AbstractDirectServer {
   DevDirectServer(
       {String host: "0.0.0.0",
       num port: 8081,
+      Map<String, String> hostApplicationMappings: const {},
       Uri webUri,
       Uri isolateUri,
       List<String> isolateArgs})
-      : super(host: host, port: port, webUri: webUri, autoCompress: false),
+      : super(host: host, port: port, webUri: webUri, hostApplicationMappings: hostApplicationMappings, autoCompress: false),
         this._isolateUri = isolateUri,
         this._isolateArgs = isolateArgs;
 
@@ -80,10 +81,11 @@ class DirectServer extends AbstractDirectServer {
   DirectServer(
       {String host: "0.0.0.0",
       num port: 8081,
+      Map<String, String> hostApplicationMappings: const {},
       Uri webUri,
       this.module,
       this.parameters: const {}})
-      : super(host: host, port: port, webUri: webUri) {
+      : super(host: host, port: port, webUri: webUri, hostApplicationMappings: hostApplicationMappings) {
     DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
   }
 
@@ -127,12 +129,16 @@ abstract class AbstractDirectServer {
 
   final bool _autoCompress;
 
+  final Map<String, String> _hostApplicationMappings;
+
   AbstractDirectServer(
       {String host: "0.0.0.0",
       num port: 8081,
+      Map<String, String> hostApplicationMappings: const {},
       Uri webUri,
       bool autoCompress: true})
-      : this._webUri = webUri,
+      : this._hostApplicationMappings = hostApplicationMappings,
+        this._webUri = webUri,
         this._host = host,
         this._port = port,
         this._autoCompress = autoCompress;
@@ -162,39 +168,16 @@ abstract class AbstractDirectServer {
         } else {
           var host = request.headers.host;
 
-          bool isIP;
-          try {
-            Uri.parseIPv4Address(host);
+          String application = this._hostApplicationMappings[host];
 
-            isIP = true;
-          } catch(e) {
-            isIP = false;
-          }
-
-
-          String application;
           String domain;
-
-          if (!isIP) {
-            var parts = host.split(".");
-            if (parts.length > 3) {
-              domain = parts[0];
-              application = parts[1];
-            } else if (parts.length > 2) {
-              application = parts[0];
-            }
-          }
-
           String requestUri;
-          if (domain == null && request.uri.pathSegments.isNotEmpty) {
-            domain = request.uri.pathSegments[0]; // obbligatorio
+          if (request.uri.pathSegments.isNotEmpty) {
+            domain = request.uri.pathSegments[0];
             requestUri = request.uri.pathSegments.sublist(1).join("/");
-          } else {
-            requestUri = request.uri.pathSegments.join("/");
-          }
-
-          if (!requestUri.startsWith("/")) {
-            requestUri = "/" + requestUri;
+            if (!requestUri.startsWith("/")) {
+              requestUri = "/" + requestUri;
+            }
           }
 
           if (domain != null) {
