@@ -12,7 +12,7 @@ void initializeClientDirectHandling(Type module,
     context["dartApi"] = (dynamic callback) =>
         handler.dartApi.then((api) => callback.apply([api]));
 
-    context["directCall"] = (String base, String application, String path,
+    context["directCall"] = (String base, String domain, String application, String path,
                              String jsonRequest, String jsonHeaders, callback) {
 
       var headers = {};
@@ -20,7 +20,6 @@ void initializeClientDirectHandling(Type module,
       headers1.forEach((String key, value) {
         key = key.toLowerCase();
 
-        String newValue;
         if (value == null) {
           headers[key] = null;
         } else if (value is List) {
@@ -30,7 +29,7 @@ void initializeClientDirectHandling(Type module,
         }
       });
 
-      return handler.directCall(new ClientDirectCall(base, application, path,
+      return handler.directCall(new ClientDirectCall(base, domain, application, path,
           jsonRequest, headers, (jsonResponse, responseHeaders) {
         callback.apply([jsonResponse, responseHeaders]);
       }));
@@ -42,6 +41,7 @@ void initializeClientDirectHandling(Type module,
 
 class ClientDirectCall implements DirectCall {
   final String base;
+  final String domain;
   final String application;
   final String path;
   final String jsonRequest;
@@ -49,13 +49,13 @@ class ClientDirectCall implements DirectCall {
   final DirectCallback callback;
 
   ClientDirectCall(
-      this.base, this.application, this.path, this.jsonRequest, this.headers, this.callback);
+      this.base, this.domain, this.application, this.path, this.jsonRequest, this.headers, this.callback);
 
-  Future onRequest(Future directCall(String base, String application,
+  Future onRequest(Future directCall(String base, String domain, String application,
       String path, String json, Map<String, List<String>> headers,
       MultipartRequest multipartRequest, DirectCallback callback)) {
 
     return directCall(
-        base, application, path, jsonRequest, headers, null, callback);
+        base, domain, application, path, jsonRequest, headers, null, callback);
   }
 }

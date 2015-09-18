@@ -211,16 +211,16 @@ class DirectManager {
     _directMethods.clear();
   }
 
-  String get dartApi => _getDartApi(null, null, true);
+  String get dartApi => _getDartApi(null, null, "embedded", true);
 
   Future directCall(DirectCall directCall) => directCall.onRequest(directCallInternal);
 
-  Future directCallInternal(String base, String application, String path, String json,
+  Future directCallInternal(String base, String domain, String application, String path, String json,
       Map<String, List<String>> headers, MultipartRequest multipartRequest, DirectCallback callback) {
     Completer completer = new Completer();
 
     if (path == "/direct/api") {
-      callback(_getDartApi(base, application, false), {});
+      callback(_getDartApi(base, domain, application, false), {});
 
       completer.complete();
     } else {
@@ -307,13 +307,13 @@ class DirectManager {
 
   Future _interceptRequestBegin() => _REQUEST_INTERCEPTOR_HANDLER_PROVIDER.get().requestBegin();
 
-  String _getDartApi(String base, String application, bool localApi) {
+  String _getDartApi(String base, String domain, String application, bool localApi) {
     StringBuffer buffer = new StringBuffer();
 
     buffer.write("var remotingApi = ");
 
     buffer
-      ..write(new JsonEncoder.withIndent("  ").convert(_getDirectApiMap(base, application, localApi)))
+      ..write(new JsonEncoder.withIndent("  ").convert(_getDirectApiMap(base, domain, application, localApi)))
       ..write(";")
       ..write("\r\n");
 
@@ -323,7 +323,7 @@ class DirectManager {
     return buffer.toString();
   }
 
-  Map<String, dynamic> _getDirectApiMap(String base, String application, bool localApi) {
+  Map<String, dynamic> _getDirectApiMap(String base, String domain, String application, bool localApi) {
     Map<String, dynamic> apiMap = {};
 
     StringBuffer url = new StringBuffer();
@@ -332,6 +332,7 @@ class DirectManager {
     }
     url.write("direct");
 
+    apiMap["domain"] = domain;
     apiMap["application"] = application;
     apiMap["url"] = url.toString();
     apiMap["type"] = localApi ? "dart" : "remoting";

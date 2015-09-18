@@ -511,8 +511,6 @@ class FutureQueue<T> {
 
   T _value;
 
-  bool _closed;
-
   Completer _completer;
 
   Future _future;
@@ -521,7 +519,6 @@ class FutureQueue<T> {
     this._completer = new Completer();
     this._computation = (value, closed) {};
     this._future = new Future.value();
-    this._closed = false;
   }
 
   void bind(computation(T, bool closed)) {
@@ -535,7 +532,6 @@ class FutureQueue<T> {
   }
 
   Future close() {
-    _closed = true;
     _future.then((_) => _computation([], true)).then((_) {
       _completer.complete();
     }).catchError((error, stacktrace) {
