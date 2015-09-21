@@ -151,6 +151,8 @@ abstract class AbstractDirectServer {
       print(
           "Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
 
+      print("Host application mappings: ${_hostApplicationMappings}");
+
       server.autoCompress = this._autoCompress;
 
       server.defaultResponseHeaders.removeAll("X-Frame-Options");
