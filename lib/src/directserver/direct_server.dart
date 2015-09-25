@@ -172,9 +172,13 @@ abstract class AbstractDirectServer {
 
           String application = this._hostApplicationMappings[host];
 
+          bool favicon = request.uri.toString() == "/favicon.ico";
+
           String domain;
           String requestUri;
-          if (request.uri.pathSegments.isNotEmpty) {
+          if (favicon) {
+            requestUri = request.uri.pathSegments.join("/");
+          } else if (request.uri.pathSegments.isNotEmpty) {
             domain = request.uri.pathSegments[0];
             requestUri = request.uri.pathSegments.sublist(1).join("/");
             if (!requestUri.startsWith("/")) {
@@ -182,15 +186,19 @@ abstract class AbstractDirectServer {
             }
           }
 
-          if (domain != null) {
+          if (favicon || domain != null) {
             bool directRequest;
-            var parts = requestUri.split("/");
-            if (parts.length > 2 && parts[2] == "direct") {
-              directRequest = true;
-            } else if (parts.length > 1 && parts[1] == "direct") {
-              directRequest = true;
-            } else {
+            if (favicon) {
               directRequest = false;
+            } else {
+              var parts = requestUri.split("/");
+              if (parts.length > 2 && parts[2] == "direct") {
+                directRequest = true;
+              } else if (parts.length > 1 && parts[1] == "direct") {
+                directRequest = true;
+              } else {
+                directRequest = false;
+              }
             }
 
             if (directRequest) {
