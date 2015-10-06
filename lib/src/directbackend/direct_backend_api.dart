@@ -355,7 +355,7 @@ class _DirectMethod {
 }
 
 abstract class DirectCall {
-  Future onRequest(Future directCall(String base, String domain, String application,
+  Future onRequest(Future directCall(String base, String application,
       String path, String json, Map<String, List<String>> headers,
       MultipartRequest multipartRequest, DirectCallback callback));
 }

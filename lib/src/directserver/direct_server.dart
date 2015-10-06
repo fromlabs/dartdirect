@@ -36,12 +36,17 @@ class DevDirectServer extends AbstractDirectServer {
       Uri webUri,
       Uri isolateUri,
       List<String> isolateArgs})
-      : super(host: host, port: port, webUri: webUri, hostApplicationMappings: hostApplicationMappings, autoCompress: false),
+      : super(
+            host: host,
+            port: port,
+            webUri: webUri,
+            hostApplicationMappings: hostApplicationMappings,
+            autoCompress: false),
         this._isolateUri = isolateUri,
         this._isolateArgs = isolateArgs;
 
   void handleRequest(
-      String base, String domain, String application, String path, HttpRequest request) {
+      String base, String application, String path, HttpRequest request) {
     var receivePort = new ReceivePort();
     receivePort.listen((message) {
       if (message["action"] == "ready") {
@@ -65,7 +70,6 @@ class DevDirectServer extends AbstractDirectServer {
     Isolate.spawnUri(_isolateUri, _isolateArgs, {
       "sendPort": receivePort.sendPort,
       "base": base,
-      "domain": domain,
       "application": application,
       "path": path,
       "headers": headers
@@ -85,7 +89,11 @@ class DirectServer extends AbstractDirectServer {
       Uri webUri,
       this.module,
       this.parameters: const {}})
-      : super(host: host, port: port, webUri: webUri, hostApplicationMappings: hostApplicationMappings) {
+      : super(
+            host: host,
+            port: port,
+            webUri: webUri,
+            hostApplicationMappings: hostApplicationMappings) {
     DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
   }
 
@@ -111,10 +119,10 @@ class DirectServer extends AbstractDirectServer {
       Registry.closeScope(Scope.ISOLATE).whenComplete(() => Registry.unload());
 
   void handleRequest(
-      String base, String domain, String application, String path, HttpRequest request) {
+      String base, String application, String path, HttpRequest request) {
     Registry
         .lookupObject(DirectHandler)
-        .directCall(new ServerDirectCall(base, domain, application, path, request));
+        .directCall(new ServerDirectCall(base, application, path, request));
   }
 }
 
@@ -144,7 +152,7 @@ abstract class AbstractDirectServer {
         this._autoCompress = autoCompress;
 
   void handleRequest(
-      String base, String domain, String application, String path, HttpRequest request);
+      String base, String application, String path, HttpRequest request);
 
   Future start() {
     return HttpServer.bind(_host, _port).then((server) {
@@ -168,103 +176,85 @@ abstract class AbstractDirectServer {
         if (request.method == "OPTIONS") {
           request.response.close();
         } else {
+          LOGGER.fine("Serving request: ${request.uri}");
+
+          var directUri;
           var host = request.headers.host;
+          var application = this._hostApplicationMappings[host];
+          var explicitApplication = application == null;
+          var parts = request.uri.pathSegments;
 
-          String application = this._hostApplicationMappings[host];
-
-          bool favicon = request.uri.toString() == "/favicon.ico";
-
-          String domain;
-          String requestUri;
-          if (favicon) {
-            requestUri = request.uri.pathSegments.join("/");
-          } else if (request.uri.pathSegments.isNotEmpty) {
-            domain = request.uri.pathSegments[0];
-            requestUri = request.uri.pathSegments.sublist(1).join("/");
-            if (!requestUri.startsWith("/")) {
-              requestUri = "/" + requestUri;
-            }
+          if (application != null) {
+            directUri = parts.length > 0 && parts[0] == "direct" ? "/" + parts.join("/") : null;
+          } else if (parts.length > 1 && parts[1] == "direct") {
+            application = parts[0];
+            directUri = "/" + parts.sublist(1).join("/");
+          } else if (parts.length > 0 && parts[0] == "direct") {
+            application = null;
+            directUri = "/" + parts.join("/");
+          } else {
+            application = null;
+            directUri = null;
           }
 
-          if (favicon || domain != null) {
-            bool directRequest;
-            if (favicon) {
-              directRequest = false;
+          if (directUri != null) {
+            if (directUri == "/direct/api") {
+              LOGGER.fine("Direct api request");
+
+              request.response.headers.contentType = new ContentType(
+                  "application", "javascript",
+                  charset: "utf-8");
+
+              handleRequest(null, application, "/direct/api", request);
             } else {
-              var parts = requestUri.split("/");
-              if (parts.length > 2 && parts[2] == "direct") {
-                directRequest = true;
-              } else if (parts.length > 1 && parts[1] == "direct") {
-                directRequest = true;
-              } else {
-                directRequest = false;
-              }
-            }
+              LOGGER.fine("Direct action request: $directUri");
 
-            if (directRequest) {
-              var directUri = requestUri;
-              if (application == null) {
-                var i = requestUri.indexOf("/direct");
-                application = i > -1
-                  ? requestUri.substring(0, i)
-                  : null; // non obbligatorio
-                directUri = requestUri.substring(i);
-              }
+              request.response.headers.contentType =
+                  new ContentType("application", "json", charset: "utf-8");
 
-              bool directApi = requestUri.endsWith("/direct/api");
-              if (directApi) {
-                request.response.headers.contentType = new ContentType(
-                    "application", "javascript",
-                    charset: "utf-8");
-
-                handleRequest(null, domain, application, "/direct/api", request);
-              } else {
-                request.response.headers.contentType =
-                    new ContentType("application", "json", charset: "utf-8");
-
-                handleRequest(null, domain, application, directUri, request);
-              }
-            } else {
-              LOGGER.fine("Serving static request: ${requestUri}");
-
-              var absolutePath = _webUri.path.endsWith("/") ? _webUri.path.substring(0, _webUri.path.length - 1) : _webUri.path;
-
-              // attacchiamo l'eventuale applicazione se non era presente
-              if (application != null) {
-                absolutePath += "/" + application;
-              }
-
-              absolutePath += requestUri;
-
-              if (await FileSystemEntity.isDirectory(absolutePath)) {
-                if (request.uri.path.endsWith("/")) {
-                  absolutePath += "index.html";
-                } else {
-                  request.response.redirect(request.uri.resolve("${request.uri.path}/"));
-                  return;
-                }
-              }
-
-              final File file = new File(absolutePath);
-              bool found = await file.exists();
-
-              if (found) {
-                var mimeType = lookupMimeType(absolutePath.split("\\.").last);
-                if (mimeType != null) {
-                  var split = mimeType.split("/");
-                  request.response.headers.contentType =
-                      new ContentType(split[0], split[1]);
-                }
-
-                await file.openRead().pipe(request.response);
-              } else {
-                request.response.statusCode = HttpStatus.NOT_FOUND;
-                await request.response.close();
-              }
+              handleRequest(null, application, directUri, request);
             }
           } else {
-            request.response.statusCode = HttpStatus.NOT_FOUND;
-            await request.response.close();
+            LOGGER.fine("Static content request: ${request.uri}");
+
+            var absolutePath = _webUri.path.endsWith("/")
+                ? _webUri.path.substring(0, _webUri.path.length - 1)
+                : _webUri.path;
+
+            if (!explicitApplication) {
+              absolutePath += "/$application";
+            }
+
+            absolutePath += request.uri.path;
+
+            if (await FileSystemEntity.isDirectory(absolutePath)) {
+              if (request.uri.path.endsWith("/")) {
+                absolutePath += "index.html";
+              } else {
+                var fragment = request.uri.hasFragment ? "#${request.uri.fragment}" : "";
+                var query = request.uri.hasQuery ? "?${request.uri.query}" : "";
+
+                request.response.redirect(request.uri.resolve("${request.uri.path}/$fragment$query"));
+                return;
+              }
+            }
+
+            final File file = new File(absolutePath);
+            bool found = await file.exists();
+
+            if (found) {
+              var mimeType = lookupMimeType(absolutePath.split("\\.").last);
+              if (mimeType != null) {
+                var split = mimeType.split("/");
+                request.response.headers.contentType =
+                    new ContentType(split[0], split[1]);
+              }
+
+              await file.openRead().pipe(request.response);
+            } else {
+              request.response.statusCode = HttpStatus.NOT_FOUND;
+              await request.response.close();
+            }
           }
         }
       });
@@ -274,16 +264,14 @@ abstract class AbstractDirectServer {
 
 class ServerDirectCall implements DirectCall {
   final String base;
-  final String domain;
   final String application;
   final String path;
   final HttpRequest request;
 
-  ServerDirectCall(this.base, this.domain, this.application, this.path, this.request);
+  ServerDirectCall(this.base, this.application, this.path, this.request);
 
   Future onRequest(Future directCall(
       String base,
-      String domain,
       String application,
       String path,
       String json,
@@ -321,7 +309,7 @@ class ServerDirectCall implements DirectCall {
 					}
 				""");
 
-        resultFuture = directCall(base, domain, application, path, buffer.toString(),
+        resultFuture = directCall(base, application, path, buffer.toString(),
             headers, multipartRequest, (jsonResponse, responseHeaders) {
           responseHeaders.forEach(
               (name, value) => request.response.headers.add(name, value));
@@ -341,7 +329,7 @@ class ServerDirectCall implements DirectCall {
           return resultFuture;
         } else {
           return directCall(
-              base, domain, application, path, buffer.toString(), headers, null,
+              base, application, path, buffer.toString(), headers, null,
               (jsonResponse, responseHeaders) {
             responseHeaders.forEach(
                 (name, value) => request.response.headers.add(name, value));
@@ -364,7 +352,6 @@ class DevServerDirectCall implements DirectCall {
 
   Future onRequest(Future directCall(
       String base,
-      String domain,
       String application,
       String path,
       String json,
@@ -374,7 +361,6 @@ class DevServerDirectCall implements DirectCall {
     Completer completer = new Completer();
     SendPort sendPort = message["sendPort"];
     String base = message["base"];
-    String domain = message["domain"];
     String application = message["application"];
     String path = message["path"];
     Map<String, List<String>> headers = message["headers"];
@@ -407,7 +393,7 @@ class DevServerDirectCall implements DirectCall {
 						}
 					""");
 
-        resultFuture = directCall(base, domain, application, path, buffer.toString(),
+        resultFuture = directCall(base, application, path, buffer.toString(),
             headers, multipartRequest, (jsonResponse, responseHeaders) {
           sendPort.send({
             "action": "response",
@@ -431,7 +417,7 @@ class DevServerDirectCall implements DirectCall {
             return resultFuture;
           } else {
             return directCall(
-                base, domain, application, path, buffer.toString(), headers, null,
+                base, application, path, buffer.toString(), headers, null,
                 (jsonResponse, responseHeaders) {
               sendPort.send({
                 "action": "response",
