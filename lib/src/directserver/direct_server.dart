@@ -240,7 +240,8 @@ abstract class AbstractDirectServer {
               }
             }
 
-            final File file = new File(absolutePath);
+            final File file = new File(Uri.decodeFull(absolutePath));
+
             bool found = await file.exists();
 
             if (found) {
