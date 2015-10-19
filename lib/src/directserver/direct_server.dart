@@ -167,7 +167,7 @@ abstract class AbstractDirectServer {
 
       server.listen((HttpRequest request) async {
         request.response.headers.add("Access-Control-Allow-Origin", "*");
-        request.response.headers.add("Access-Control-Allow-Headers", "environment,locale,code-base,domain,authorization");
+        request.response.headers.add("Access-Control-Allow-Headers", "X-Requested-With,Content-Type,environment,locale,code-base,domain,authorization");
         request.response.headers.add("Access-Control-Expose-Headers", "authorization");
         request.response.headers.set("Access-Control-Allow-Methods", "POST");
 
