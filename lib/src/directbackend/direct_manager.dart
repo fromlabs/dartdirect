@@ -217,7 +217,10 @@ class DirectManager {
 
   Future directCallInternal(String base, String application, String path, String json,
       Map<String, List<String>> headers, MultipartRequest multipartRequest, DirectCallback callback) {
+
     Completer completer = new Completer();
+    Stopwatch watcher = new Stopwatch()..start();
+    LOGGER.info("Direct call...");
 
     if (path == "/direct/api") {
       callback(_getDartApi(base, application, false), {});
@@ -250,7 +253,11 @@ class DirectManager {
       }).then((value) {
         var directResponse = new DirectResultResponse(directRequest, value);
 
-        callback(JSON.encode(directResponse), directRequest.responseHeaders);
+        var jsonResponse = JSON.encode(directResponse);
+
+        LOGGER.info("Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
+
+        callback(jsonResponse, directRequest.responseHeaders);
 
         completer.complete();
       }).catchError((error, stacktrace) {
@@ -289,7 +296,11 @@ class DirectManager {
             // TODO log errore
           }
 
-          callback(JSON.encode(directResponse), {});
+          var jsonResponse = JSON.encode(directResponse);
+
+          LOGGER.info("Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
+
+          callback(jsonResponse, {});
 
           completer.complete();
         });
@@ -386,14 +397,7 @@ class DirectHandler {
 
   Future<String> get dartApi => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
 
-  Future directCall(DirectCall directCall) {
-    Stopwatch watcher = new Stopwatch()..start();
-    LOGGER.info("Direct call...");
-
-    return _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(directCall)).whenComplete(() {
-      LOGGER.info("Direct call elapsed in ${watcher.elapsedMilliseconds} ms");
-    });
-  }
+  Future directCall(DirectCall directCall) =>_scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(directCall));
 
   _scopedCall(ScopeRunnable runnable) => Registry.runInScope(DirectScope.REQUEST, runnable);
 }
