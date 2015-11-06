@@ -220,7 +220,7 @@ class DirectManager {
 
     Completer completer = new Completer();
     Stopwatch watcher = new Stopwatch()..start();
-    LOGGER.info("Direct call...");
+    LOGGER.fine("Direct call...");
 
     if (path == "/direct/api") {
       callback(_getDartApi(base, application, false), {});
