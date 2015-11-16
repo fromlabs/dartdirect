@@ -19,11 +19,13 @@ class BusinessError extends Error {
 
   final bool notifyToBackend;
 
-  BusinessError(this.message, this.forceCommit, this.notifyToBackend);
+  BusinessError(this.message, {this.forceCommit: false, this.notifyToBackend: false});
 
-  String toString() => message != null ? this.message : super.toString();
+  String get type => runtimeType.toString();
 
-  Map toJson() => {"type": this.runtimeType.toString(), "message": message};
+  String toString() => "$message [$type]";
+
+  Map toJson() => {"type": type, "message": message};
 }
 
 abstract class DirectObject {
@@ -271,7 +273,7 @@ class DirectManager {
               if (transaction) {
                 return _commitTransaction().catchError((error, stacktrace) {
                   LOGGER.severe("Commit error", error, stacktrace);
-                  directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
+                  directResponse = new DirectErrorResponse(directRequest, error, error.toString()); // error: "not_in_role","not_logged");
                 });
               }
             } else {
@@ -284,7 +286,7 @@ class DirectManager {
           } else {
             LOGGER.severe("System error", error, stacktrace);
 
-            directResponse = new DirectErrorResponse(directRequest, error); // error: "not_in_role","not_logged");
+            directResponse = new DirectErrorResponse(directRequest, error, error.toString()); // error: "not_in_role","not_logged");
             if (transaction) {
               return _rollbackTransaction().catchError((error, stacktrace) {
                 LOGGER.severe("Rollback error", error, stacktrace);
