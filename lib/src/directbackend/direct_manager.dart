@@ -19,7 +19,7 @@ class BusinessError extends Error {
 
   final bool notifyToBackend;
 
-  BusinessError(this.message, {this.forceCommit: false, this.notifyToBackend: false});
+  BusinessError(this.message, [this.forceCommit = false, this.notifyToBackend = false]);
 
   String get type => runtimeType.toString();
 
