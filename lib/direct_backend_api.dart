@@ -2,6 +2,8 @@ library directbackendapi;
 
 import 'package:dartregistry/dart_registry.dart';
 
+import "package:reflectable/reflectable.dart";
+
 import "dart:convert";
 import 'dart:async';
 

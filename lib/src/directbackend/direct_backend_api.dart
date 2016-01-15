@@ -4,6 +4,7 @@ part of directbackendapi;
 
 String DIRECT_ENVIROMENT;
 
+@Injectable
 abstract class DirectModule extends RegistryModule {
 
   Type get transactionHandlerClazz;
@@ -15,14 +16,16 @@ abstract class DirectModule extends RegistryModule {
   @override
   Future configure(Map<String, dynamic> parameters) {
     return super.configure(parameters).then((_) {
+      this.directManager = new DirectManager(DIRECT_ENVIROMENT);
+
       bindProviderFunction(Logger, Scope.ISOLATE, provideLogger);
 
       bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
 
       bindClass(RequestInterceptorHandler, Scope.ISOLATE, requestInterceptorHandlerClazz);
 
-      this.directManager = new DirectManager(DIRECT_ENVIROMENT);
       bindInstance(DirectManager, this.directManager);
+
       bindClass(DirectHandler, Scope.ISOLATE);
 
       bindClass(DirectRequest, DirectScope.REQUEST);
@@ -39,10 +42,7 @@ abstract class DirectModule extends RegistryModule {
   Logger provideLogger() => new Logger("directbackend");
 
   void onBindingAdded(Type clazz) {
-    var annotationMirror = reflect(DirectAction);
-    if (reflectType(clazz).metadata.contains(annotationMirror)) {
-      this.directManager.registerDirectAction(clazz);
-    }
+    this.directManager.registerDirectAction(clazz);
   }
 }
 

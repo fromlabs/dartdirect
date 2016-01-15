@@ -19,7 +19,8 @@ class BusinessError extends Error {
 
   final bool notifyToBackend;
 
-  BusinessError(this.message, [this.forceCommit = false, this.notifyToBackend = false]);
+  BusinessError(this.message,
+      [this.forceCommit = false, this.notifyToBackend = false]);
 
   String get type => runtimeType.toString();
 
@@ -28,6 +29,7 @@ class BusinessError extends Error {
   Map toJson() => {"type": type, "message": message};
 }
 
+@Injectable
 abstract class DirectObject {
   String _application;
 
@@ -39,7 +41,8 @@ abstract class DirectObject {
 
   num _tid;
 
-  DirectObject({String application, String action, String method, String type, num tid})
+  DirectObject(
+      {String application, String action, String method, String type, num tid})
       : this._application = application,
         this._action = action,
         this._method = method,
@@ -56,9 +59,16 @@ abstract class DirectObject {
 
   num get tid => _tid;
 
-  Map toJson() => {"application": application, "action": _action, "method": _method, "type": _type, "tid": _tid};
+  Map toJson() => {
+        "application": application,
+        "action": _action,
+        "method": _method,
+        "type": _type,
+        "tid": _tid
+      };
 }
 
+@Injectable
 class DirectRequest extends DirectObject {
   List<dynamic> _data;
 
@@ -66,8 +76,15 @@ class DirectRequest extends DirectObject {
 
   Map<String, List<String>> _responseHeaders;
 
-  Future _registerRequest(String application, String action, String method, String type, num tid, List<dynamic> data,
-      MultipartRequest multipartRequest, Map<String, List<String>> headers) {
+  Future _registerRequest(
+      String application,
+      String action,
+      String method,
+      String type,
+      num tid,
+      List<dynamic> data,
+      MultipartRequest multipartRequest,
+      Map<String, List<String>> headers) {
     _application = application;
     _action = action;
     _method = method;
@@ -109,23 +126,26 @@ class DirectRequest extends DirectObject {
 
   Future onDirectRequestRegisteredInternal() => new Future.value();
 
-  Future _notifyDirectRequestRegisteredListeners() =>
-      Registry.notifyListeners(DirectScope.REQUEST, OnDirectRequestRegistered, false);
+  Future _notifyDirectRequestRegisteredListeners() => Registry.notifyListeners(
+      DirectScope.REQUEST, OnDirectRequestRegistered, false);
 }
 
+@Injectable
 abstract class DirectResponse extends DirectObject {
-  DirectResponse(DirectRequest directRequest, String type) : super(
-          application: directRequest.application,
-          action: directRequest.action,
-          method: directRequest.method,
-          type: type,
-          tid: directRequest.tid);
+  DirectResponse(DirectRequest directRequest, String type)
+      : super(
+            application: directRequest.application,
+            action: directRequest.action,
+            method: directRequest.method,
+            type: type,
+            tid: directRequest.tid);
 
   bool get isNotifyError => cause != null;
 
   get cause => null;
 }
 
+@Injectable
 class DirectResultResponse extends DirectResponse {
   final result;
 
@@ -135,27 +155,34 @@ class DirectResultResponse extends DirectResponse {
       : this.businessError = null,
         super(directRequest, directRequest.type);
 
-  DirectResultResponse.throwBusinessError(DirectRequest directRequest, this.businessError)
+  DirectResultResponse.throwBusinessError(
+      DirectRequest directRequest, this.businessError)
       : this.result = {},
         super(directRequest, directRequest.type);
 
-  bool get isNotifyError => super.isNotifyError && businessError.notifyToBackend;
+  bool get isNotifyError =>
+      super.isNotifyError && businessError.notifyToBackend;
 
   get cause => businessError;
 
-  Map toJson() => super.toJson()..addAll({"success": true, "result": result, "businessError": businessError});
+  Map toJson() => super.toJson()
+    ..addAll(
+        {"success": true, "result": result, "businessError": businessError});
 }
 
+@Injectable
 class DirectErrorResponse extends DirectResponse {
   final String error;
 
   final cause;
 
-  DirectErrorResponse(DirectRequest directRequest, this.cause, [this.error]) : super(directRequest, "exception");
+  DirectErrorResponse(DirectRequest directRequest, this.cause, [this.error])
+      : super(directRequest, "exception");
 
   Map toJson() => super.toJson()..addAll({"success": false, "error": error});
 }
 
+@Injectable
 abstract class TransactionHandler {
   Future openTransaction();
 
@@ -164,10 +191,12 @@ abstract class TransactionHandler {
   Future rollbackTransaction();
 }
 
+@Injectable
 abstract class RequestInterceptorHandler {
   Future requestBegin();
 }
 
+@Injectable
 class DirectManager {
   static Logger LOGGER = new Logger("directbackend.DirectManager");
 
@@ -177,33 +206,47 @@ class DirectManager {
   final String enviroment;
 
   @Inject
-  Provider<TransactionHandler> _TRANSACTION_HANDLER_PROVIDER;
+  Provider<TransactionHandler> TRANSACTION_HANDLER_PROVIDER;
 
   @Inject
-  Provider<RequestInterceptorHandler> _REQUEST_INTERCEPTOR_HANDLER_PROVIDER;
+  Provider<RequestInterceptorHandler> REQUEST_INTERCEPTOR_HANDLER_PROVIDER;
 
   DirectManager(this.enviroment) {
     LOGGER.config("Direct Manager registered in $enviroment enviroment");
   }
 
-  void registerDirectAction(Type actionClazz) {
-    LOGGER.fine("Register direct action: $actionClazz");
+  Type lookupDirectAction(String action) {
+    return _directActions[action];
+  }
 
-    // recupero metodi
-    Map<String, MethodMirror> methods = new Map<String, MethodMirror>();
-    var annotationMirror = reflect(DirectMethod);
-    reflectClass(actionClazz).declarations.forEach((methodSymbol, methodMirror) {
-      if (methodMirror is MethodMirror && methodMirror.metadata.contains(annotationMirror)) {
-        var name = MirrorSystem.getName(methodSymbol);
-        LOGGER.fine("Register direct method: ${name}");
+  MethodMirror lookupDirectMethod(String action, String name) {
+    return _directMethods[action][name];
+  }
 
-        methods[name] = methodMirror;
-      }
-    });
+  void registerDirectAction(Type clazz) {
+    // TODO ricorsione sulle superclass
 
-    var actionName = actionClazz.toString();
-    _directActions[actionName] = actionClazz;
-    _directMethods[actionName] = methods;
+    // TODO verificare se ha senso memorizzare tutto il methodmirror
+
+    var actionClazzMirror = Injectable.reflectType(clazz);
+    if (actionClazzMirror.metadata.contains(DirectAction)) {
+      LOGGER.fine("Register direct action: ${actionClazzMirror.simpleName}");
+
+      // recupero metodi
+      Map<String, MethodMirror> methods = new Map<String, MethodMirror>();
+      actionClazzMirror.declarations.forEach((name, methodMirror) {
+        if (methodMirror is MethodMirror &&
+            methodMirror.metadata.contains(DirectMethod)) {
+          LOGGER.fine("Register direct method: ${name}");
+
+          methods[name] = methodMirror;
+        }
+      });
+
+      _directActions[actionClazzMirror.simpleName] =
+          actionClazzMirror.reflectedType;
+      _directMethods[actionClazzMirror.simpleName] = methods;
+    }
   }
 
   void deregisterAllDirectActions() {
@@ -215,11 +258,17 @@ class DirectManager {
 
   String get dartApi => _getDartApi(null, "embedded", true);
 
-  Future directCall(DirectCall directCall) => directCall.onRequest(directCallInternal);
+  Future directCall(DirectCall directCall) =>
+      directCall.onRequest(directCallInternal);
 
-  Future directCallInternal(String base, String application, String path, String json,
-      Map<String, List<String>> headers, MultipartRequest multipartRequest, DirectCallback callback) {
-
+  Future directCallInternal(
+      String base,
+      String application,
+      String path,
+      String json,
+      Map<String, List<String>> headers,
+      MultipartRequest multipartRequest,
+      DirectCallback callback) {
     Completer completer = new Completer();
     Stopwatch watcher = new Stopwatch()..start();
     LOGGER.fine("Direct call...");
@@ -233,12 +282,18 @@ class DirectManager {
       var decodedDirectRequest = JSON.decode(json);
 
       DirectRequest directRequest = Registry.lookupObject(DirectRequest);
-      bool transaction =
-          !decodedDirectRequest["method"].startsWith("get") && !decodedDirectRequest["method"].startsWith("is");
+      bool transaction = !decodedDirectRequest["method"].startsWith("get") &&
+          !decodedDirectRequest["method"].startsWith("is");
 
       directRequest
-          ._registerRequest(application, decodedDirectRequest["action"], decodedDirectRequest["method"],
-              decodedDirectRequest["type"], decodedDirectRequest["tid"], decodedDirectRequest["data"], multipartRequest,
+          ._registerRequest(
+              application,
+              decodedDirectRequest["action"],
+              decodedDirectRequest["method"],
+              decodedDirectRequest["type"],
+              decodedDirectRequest["tid"],
+              decodedDirectRequest["data"],
+              multipartRequest,
               headers)
           .then((_) {
         return _interceptRequestBegin().then((_) {
@@ -257,7 +312,8 @@ class DirectManager {
 
         var jsonResponse = JSON.encode(directResponse);
 
-        LOGGER.info("Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
+        LOGGER.info(
+            "Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
         callback(jsonResponse, directRequest.responseHeaders);
 
@@ -267,13 +323,15 @@ class DirectManager {
         new Future.sync(() {
           if (error is BusinessError) {
             LOGGER.info("Business error", error, stacktrace);
-            directResponse = new DirectResultResponse.throwBusinessError(directRequest, error);
+            directResponse = new DirectResultResponse.throwBusinessError(
+                directRequest, error);
 
             if (error.forceCommit) {
               if (transaction) {
                 return _commitTransaction().catchError((error, stacktrace) {
                   LOGGER.severe("Commit error", error, stacktrace);
-                  directResponse = new DirectErrorResponse(directRequest, error, error.toString()); // error: "not_in_role","not_logged");
+                  directResponse = new DirectErrorResponse(directRequest, error,
+                      error.toString()); // error: "not_in_role","not_logged");
                 });
               }
             } else {
@@ -286,7 +344,8 @@ class DirectManager {
           } else {
             LOGGER.severe("System error", error, stacktrace);
 
-            directResponse = new DirectErrorResponse(directRequest, error, error.toString()); // error: "not_in_role","not_logged");
+            directResponse = new DirectErrorResponse(directRequest, error,
+                error.toString()); // error: "not_in_role","not_logged");
             if (transaction) {
               return _rollbackTransaction().catchError((error, stacktrace) {
                 LOGGER.severe("Rollback error", error, stacktrace);
@@ -300,7 +359,8 @@ class DirectManager {
 
           var jsonResponse = JSON.encode(directResponse);
 
-          LOGGER.info("Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
+          LOGGER.info(
+              "Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
           callback(jsonResponse, {});
 
@@ -312,13 +372,17 @@ class DirectManager {
     return completer.future;
   }
 
-  Future _openTransaction() => _TRANSACTION_HANDLER_PROVIDER.get().openTransaction();
+  Future _openTransaction() =>
+      TRANSACTION_HANDLER_PROVIDER.get().openTransaction();
 
-  Future _commitTransaction() => _TRANSACTION_HANDLER_PROVIDER.get().commitTransaction();
+  Future _commitTransaction() =>
+      TRANSACTION_HANDLER_PROVIDER.get().commitTransaction();
 
-  Future _rollbackTransaction() => _TRANSACTION_HANDLER_PROVIDER.get().rollbackTransaction();
+  Future _rollbackTransaction() =>
+      TRANSACTION_HANDLER_PROVIDER.get().rollbackTransaction();
 
-  Future _interceptRequestBegin() => _REQUEST_INTERCEPTOR_HANDLER_PROVIDER.get().requestBegin();
+  Future _interceptRequestBegin() =>
+      REQUEST_INTERCEPTOR_HANDLER_PROVIDER.get().requestBegin();
 
   String _getDartApi(String base, String application, bool localApi) {
     StringBuffer buffer = new StringBuffer();
@@ -326,17 +390,17 @@ class DirectManager {
     buffer.write("var remotingApi = ");
 
     buffer
-      ..write(new JsonEncoder.withIndent("  ").convert(_getDirectApiMap(base, application, localApi)))
+      ..write(new JsonEncoder.withIndent("  ")
+          .convert(_getDirectApiMap(base, application, localApi)))
       ..write(";")
       ..write("\r\n");
 
-    buffer
-      ..write("onDirectApiLoaded(remotingApi);")
-      ..write("\r\n");
+    buffer..write("onDirectApiLoaded(remotingApi);")..write("\r\n");
     return buffer.toString();
   }
 
-  Map<String, dynamic> _getDirectApiMap(String base, String application, bool localApi) {
+  Map<String, dynamic> _getDirectApiMap(
+      String base, String application, bool localApi) {
     Map<String, dynamic> apiMap = {};
 
     StringBuffer url = new StringBuffer();
@@ -371,35 +435,40 @@ class DirectManager {
   }
 
   _invokeDirectService(DirectRequest request) {
-    InstanceMirror result;
+    var result;
     var actionType = _directActions[request.action];
     if (actionType == null) {
       throw new ArgumentError("Direct action not defined: ${request.action}");
     }
     var service = Registry.lookupObject(actionType);
-    var serviceMirror = reflect(service);
+    var serviceMirror = Injectable.reflect(service);
     MethodMirror methodMirror = _directMethods[request.action][request.method];
     if (methodMirror == null) {
-      throw new ArgumentError("Direct method not defined: ${request.action}.${request.method}");
+      throw new ArgumentError(
+          "Direct method not defined: ${request.action}.${request.method}");
     } else if (methodMirror.parameters.isEmpty) {
       result = serviceMirror.invoke(methodMirror.simpleName, []);
     } else {
       result = serviceMirror.invoke(methodMirror.simpleName, request.data);
     }
 
-    return result != null ? result.reflectee : null;
+    return result;
   }
 }
 
+@Injectable
 class DirectHandler {
   static Logger LOGGER = new Logger("directbackend.DirectHandler");
 
   static ProviderFunction<DirectManager> _DIRECT_MANAGER_SERVICE_PROVIDER =
       Registry.lookupProviderFunction(DirectManager);
 
-  Future<String> get dartApi => _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
+  Future<String> get dartApi =>
+      _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
 
-  Future directCall(DirectCall directCall) =>_scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(directCall));
+  Future directCall(DirectCall directCall) => _scopedCall(
+      () => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(directCall));
 
-  _scopedCall(ScopeRunnable runnable) => Registry.runInScope(DirectScope.REQUEST, runnable);
+  _scopedCall(ScopeRunnable runnable) =>
+      Registry.runInScope(DirectScope.REQUEST, runnable);
 }
