@@ -4,7 +4,7 @@ part of directbackendapi;
 
 String DIRECT_ENVIROMENT;
 
-@Injectable
+@Module
 abstract class DirectModule extends RegistryModule {
 
   Type get transactionHandlerClazz;
@@ -16,6 +16,8 @@ abstract class DirectModule extends RegistryModule {
   @override
   Future configure(Map<String, dynamic> parameters) {
     return super.configure(parameters).then((_) {
+      logCapabilities(DirectAction);
+
       this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 
       bindProviderFunction(Logger, Scope.ISOLATE, provideLogger);
@@ -54,8 +56,8 @@ class DirectEnviroment {
   static const String SERVER = "SERVER";
 }
 
-const DirectAction = const _DirectAction();
-const DirectMethod = const _DirectMethod();
+const DirectAction_ DirectAction = const DirectAction_();
+const DirectMethod_ DirectMethod = const DirectMethod_();
 
 
 
@@ -346,12 +348,19 @@ abstract class RequestProgress {
   int get total;
 }
 
-class _DirectAction {
-  const _DirectAction();
+class DirectAction_ extends Reflectable {
+  const DirectAction_()
+      : super(
+      metadataCapability,
+      typeRelationsCapability,
+      declarationsCapability,
+      instanceInvokeCapability,
+      newInstanceCapability
+  );
 }
 
-class _DirectMethod {
-  const _DirectMethod();
+class DirectMethod_ {
+  const DirectMethod_();
 }
 
 abstract class DirectCall {

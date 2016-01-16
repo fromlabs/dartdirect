@@ -29,7 +29,6 @@ class BusinessError extends Error {
   Map toJson() => {"type": type, "message": message};
 }
 
-@Injectable
 abstract class DirectObject {
   String _application;
 
@@ -130,7 +129,6 @@ class DirectRequest extends DirectObject {
       DirectScope.REQUEST, OnDirectRequestRegistered, false);
 }
 
-@Injectable
 abstract class DirectResponse extends DirectObject {
   DirectResponse(DirectRequest directRequest, String type)
       : super(
@@ -145,7 +143,6 @@ abstract class DirectResponse extends DirectObject {
   get cause => null;
 }
 
-@Injectable
 class DirectResultResponse extends DirectResponse {
   final result;
 
@@ -170,7 +167,6 @@ class DirectResultResponse extends DirectResponse {
         {"success": true, "result": result, "businessError": businessError});
 }
 
-@Injectable
 class DirectErrorResponse extends DirectResponse {
   final String error;
 
@@ -215,37 +211,52 @@ class DirectManager {
     LOGGER.config("Direct Manager registered in $enviroment enviroment");
   }
 
-  Type lookupDirectAction(String action) {
-    return _directActions[action];
-  }
-
   MethodMirror lookupDirectMethod(String action, String name) {
     return _directMethods[action][name];
   }
 
+  List lookupDirectMethodMetadata(String action, String name) =>
+      lookupDirectMethod(action, name).metadata;
+
   void registerDirectAction(Type clazz) {
-    // TODO ricorsione sulle superclass
+    if (!DirectAction.canReflectType(clazz)) {
+      LOGGER.finest("class $clazz is not reflected");
+      return;
+    }
 
-    // TODO verificare se ha senso memorizzare tutto il methodmirror
+    Map<String, MethodMirror> methods = new Map<String, MethodMirror>();
+    var actionClazzMirror = DirectAction.reflectType(clazz);
+    var mainClazzMirror = actionClazzMirror;
+    while (actionClazzMirror != null) {
+      if (actionClazzMirror.metadata.contains(DirectAction)) {
+        // recupero metodi
+        actionClazzMirror.declarations.forEach((name, methodMirror) {
+          if (methodMirror is MethodMirror &&
+              methodMirror.metadata.contains(DirectMethod)) {
+            LOGGER.fine("Register direct method: ${name}");
 
-    var actionClazzMirror = Injectable.reflectType(clazz);
-    if (actionClazzMirror.metadata.contains(DirectAction)) {
-      LOGGER.fine("Register direct action: ${actionClazzMirror.simpleName}");
+            methods[name] = methodMirror;
+          }
+        });
+      }
 
-      // recupero metodi
-      Map<String, MethodMirror> methods = new Map<String, MethodMirror>();
-      actionClazzMirror.declarations.forEach((name, methodMirror) {
-        if (methodMirror is MethodMirror &&
-            methodMirror.metadata.contains(DirectMethod)) {
-          LOGGER.fine("Register direct method: ${name}");
+      try {
+        actionClazzMirror = actionClazzMirror.superclass;
+      } on NoSuchCapabilityError catch (e) {
+        LOGGER.finest(
+            "super class of ${actionClazzMirror.simpleName} is not reflected",
+            e);
 
-          methods[name] = methodMirror;
-        }
-      });
+        actionClazzMirror = null;
+      }
+    }
 
-      _directActions[actionClazzMirror.simpleName] =
-          actionClazzMirror.reflectedType;
-      _directMethods[actionClazzMirror.simpleName] = methods;
+    if (methods.isNotEmpty) {
+      LOGGER.fine("Register direct action: ${mainClazzMirror.simpleName}");
+
+      _directActions[mainClazzMirror.simpleName] =
+          mainClazzMirror.reflectedType;
+      _directMethods[mainClazzMirror.simpleName] = methods;
     }
   }
 
@@ -441,7 +452,7 @@ class DirectManager {
       throw new ArgumentError("Direct action not defined: ${request.action}");
     }
     var service = Registry.lookupObject(actionType);
-    var serviceMirror = Injectable.reflect(service);
+    var serviceMirror = DirectAction.reflect(service);
     MethodMirror methodMirror = _directMethods[request.action][request.method];
     if (methodMirror == null) {
       throw new ArgumentError(
