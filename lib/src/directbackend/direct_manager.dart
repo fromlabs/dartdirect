@@ -1,9 +1,11 @@
 part of directbackendapi;
 
-const Object OnDirectRequestRegistered = const _OnDirectRequestRegistered();
+const OnDirectRequestRegistered onDirectRequestRegistered =
+    const OnDirectRequestRegistered();
 
-class _OnDirectRequestRegistered {
-  const _OnDirectRequestRegistered();
+@injectable
+class OnDirectRequestRegistered {
+  const OnDirectRequestRegistered();
 }
 
 class DirectScope extends Scope {
@@ -67,7 +69,7 @@ abstract class DirectObject {
       };
 }
 
-@Injectable
+@injectable
 class DirectRequest extends DirectObject {
   List<dynamic> _data;
 
@@ -178,7 +180,7 @@ class DirectErrorResponse extends DirectResponse {
   Map toJson() => super.toJson()..addAll({"success": false, "error": error});
 }
 
-@Injectable
+@injectable
 abstract class TransactionHandler {
   Future openTransaction();
 
@@ -187,12 +189,12 @@ abstract class TransactionHandler {
   Future rollbackTransaction();
 }
 
-@Injectable
+@injectable
 abstract class RequestInterceptorHandler {
   Future requestBegin();
 }
 
-@Injectable
+@injectable
 class DirectManager {
   static Logger LOGGER = new Logger("directbackend.DirectManager");
 
@@ -201,10 +203,10 @@ class DirectManager {
 
   final String enviroment;
 
-  @Inject
+  @Inject(TransactionHandler)
   Provider<TransactionHandler> TRANSACTION_HANDLER_PROVIDER;
 
-  @Inject
+  @Inject(RequestInterceptorHandler)
   Provider<RequestInterceptorHandler> REQUEST_INTERCEPTOR_HANDLER_PROVIDER;
 
   DirectManager(this.enviroment) {
@@ -219,23 +221,31 @@ class DirectManager {
       lookupDirectMethod(action, name).metadata;
 
   void registerDirectAction(Type clazz) {
-    if (!DirectAction.canReflectType(clazz)) {
+    LOGGER.finest("Look if $clazz is a direct action");
+
+    if (!injectable.canReflectType(clazz)) {
       LOGGER.finest("class $clazz is not reflected");
       return;
     }
 
     Map<String, MethodMirror> methods = new Map<String, MethodMirror>();
-    var actionClazzMirror = DirectAction.reflectType(clazz);
+    var actionClazzMirror = injectable.reflectType(clazz);
     var mainClazzMirror = actionClazzMirror;
     while (actionClazzMirror != null) {
-      if (actionClazzMirror.metadata.contains(DirectAction)) {
+      var actionAnnotationInstance =
+          lookupMetadataOfType(actionClazzMirror.metadata, DirectAction);
+
+      if (actionAnnotationInstance != null) {
         // recupero metodi
         actionClazzMirror.declarations.forEach((name, methodMirror) {
-          if (methodMirror is MethodMirror &&
-              methodMirror.metadata.contains(DirectMethod)) {
-            LOGGER.fine("Register direct method: ${name}");
+          if (methodMirror is MethodMirror) {
+            var methodAnnotationInstance =
+                lookupMetadataOfType(methodMirror.metadata, DirectMethod);
+            if (methodAnnotationInstance != null) {
+              LOGGER.fine("Register direct method: ${name}");
 
-            methods[name] = methodMirror;
+              methods[name] = methodMirror;
+            }
           }
         });
       }
@@ -452,7 +462,7 @@ class DirectManager {
       throw new ArgumentError("Direct action not defined: ${request.action}");
     }
     var service = Registry.lookupObject(actionType);
-    var serviceMirror = DirectAction.reflect(service);
+    var serviceMirror = injectable.reflect(service);
     MethodMirror methodMirror = _directMethods[request.action][request.method];
     if (methodMirror == null) {
       throw new ArgumentError(
@@ -467,18 +477,20 @@ class DirectManager {
   }
 }
 
-@Injectable
+@injectable
 class DirectHandler {
   static Logger LOGGER = new Logger("directbackend.DirectHandler");
 
-  static ProviderFunction<DirectManager> _DIRECT_MANAGER_SERVICE_PROVIDER =
-      Registry.lookupProviderFunction(DirectManager);
+  // TODO verificare se possibile iniettarlo
+
+  static ProvideFunction<DirectManager> _DIRECT_MANAGER_SERVICE_PROVIDE =
+      Registry.lookupProvideFunction(DirectManager);
 
   Future<String> get dartApi =>
-      _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDER().dartApi);
+      _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDE().dartApi);
 
   Future directCall(DirectCall directCall) => _scopedCall(
-      () => _DIRECT_MANAGER_SERVICE_PROVIDER().directCall(directCall));
+      () => _DIRECT_MANAGER_SERVICE_PROVIDE().directCall(directCall));
 
   _scopedCall(ScopeRunnable runnable) =>
       Registry.runInScope(DirectScope.REQUEST, runnable);

@@ -15,3 +15,5 @@ import 'dart:collection';
 
 part "src/directserver/direct_server.dart";
 part "src/directserver/multipart_parser.dart";
+
+final Logger _libraryLogger = new Logger("directserver");

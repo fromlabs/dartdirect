@@ -4,9 +4,21 @@ part of directbackendapi;
 
 String DIRECT_ENVIROMENT;
 
-@Module
-abstract class DirectModule extends RegistryModule {
+const DirectAction directAction = const DirectAction();
+const DirectMethod directMethod = const DirectMethod();
 
+@injectable
+class DirectAction {
+  const DirectAction();
+}
+
+@injectable
+class DirectMethod {
+  const DirectMethod();
+}
+
+@injectionModule
+abstract class DirectModule extends RegistryModule {
   Type get transactionHandlerClazz;
 
   Type get requestInterceptorHandlerClazz;
@@ -16,15 +28,14 @@ abstract class DirectModule extends RegistryModule {
   @override
   Future configure(Map<String, dynamic> parameters) {
     return super.configure(parameters).then((_) {
-      logCapabilities(DirectAction);
-
       this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 
-      bindProviderFunction(Logger, Scope.ISOLATE, provideLogger);
+      bindProvideFunction(Logger, Scope.ISOLATE, provideLogger);
 
       bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
 
-      bindClass(RequestInterceptorHandler, Scope.ISOLATE, requestInterceptorHandlerClazz);
+      bindClass(RequestInterceptorHandler, Scope.ISOLATE,
+          requestInterceptorHandlerClazz);
 
       bindInstance(DirectManager, this.directManager);
 
@@ -48,21 +59,15 @@ abstract class DirectModule extends RegistryModule {
   }
 }
 
-typedef void DirectCallback(String jsonResponse, Map<String,
-    List<String>> responseHeaders);
+typedef void DirectCallback(
+    String jsonResponse, Map<String, List<String>> responseHeaders);
 
 class DirectEnviroment {
   static const String CLIENT = "CLIENT";
   static const String SERVER = "SERVER";
 }
 
-const DirectAction_ DirectAction = const DirectAction_();
-const DirectMethod_ DirectMethod = const DirectMethod_();
-
-
-
 class DirectParams {
-
   Map<String, dynamic> _params;
   var _id;
   int _start;
@@ -176,7 +181,6 @@ class DirectSort {
 }
 
 class DirectFilter {
-
   static const String NUMERIC_TYPE = "NUMERIC";
   static const String STRING_TYPE = "STRING";
   static const String DATE_TYPE = "DATE";
@@ -304,7 +308,6 @@ class DirectFilter {
 }
 
 class PagedList<T> {
-
   final List<T> data;
 
   final int total;
@@ -312,15 +315,11 @@ class PagedList<T> {
   PagedList(this.data, this.total);
 
   Map toJson() {
-    return {
-      "data": data,
-      "total": total
-    };
+    return {"data": data, "total": total};
   }
 }
 
 abstract class MultipartRequest {
-
   Map<String, List<RequestParameter>> get parameters;
 
   RequestProgress get progress;
@@ -348,23 +347,13 @@ abstract class RequestProgress {
   int get total;
 }
 
-class DirectAction_ extends Reflectable {
-  const DirectAction_()
-      : super(
-      metadataCapability,
-      typeRelationsCapability,
-      declarationsCapability,
-      instanceInvokeCapability,
-      newInstanceCapability
-  );
-}
-
-class DirectMethod_ {
-  const DirectMethod_();
-}
-
 abstract class DirectCall {
-  Future onRequest(Future directCall(String base, String application,
-      String path, String json, Map<String, List<String>> headers,
-      MultipartRequest multipartRequest, DirectCallback callback));
+  Future onRequest(Future directCall(
+      String base,
+      String application,
+      String path,
+      String json,
+      Map<String, List<String>> headers,
+      MultipartRequest multipartRequest,
+      DirectCallback callback));
 }
