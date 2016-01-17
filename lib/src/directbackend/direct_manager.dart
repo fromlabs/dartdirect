@@ -213,60 +213,34 @@ class DirectManager {
     LOGGER.config("Direct Manager registered in $enviroment enviroment");
   }
 
-  MethodMirror lookupDirectMethod(String action, String name) {
-    return _directMethods[action][name];
+  List getDirectMethodAnnotations(String directAction, String directMethod) {
+    _checkDirectMethod(directAction, directMethod);
+
+    var actionType = _directActions[directAction];
+
+    return Registry.getMethodAnnotations(actionType, directMethod);
   }
 
-  List lookupDirectMethodMetadata(String action, String name) =>
-      lookupDirectMethod(action, name).metadata;
-
   void registerDirectAction(Type clazz) {
-    LOGGER.finest("Look if $clazz is a direct action");
+    LOGGER.finest("Check if $clazz is a direct action");
 
-    if (!injectable.canReflectType(clazz)) {
-      LOGGER.finest("class $clazz is not reflected");
-      return;
-    }
+    if (Registry.isTypeAnnotatedWith(clazz, DirectAction)) {
+      var methods = Registry.getAllMethodsAnnotatedWith(clazz, DirectMethod);
 
-    Map<String, MethodMirror> methods = new Map<String, MethodMirror>();
-    var actionClazzMirror = injectable.reflectType(clazz);
-    var mainClazzMirror = actionClazzMirror;
-    while (actionClazzMirror != null) {
-      var actionAnnotationInstance =
-          lookupMetadataOfType(actionClazzMirror.metadata, DirectAction);
+      if (methods.isNotEmpty) {
+        LOGGER.fine("Register direct action: $clazz");
 
-      if (actionAnnotationInstance != null) {
-        // recupero metodi
-        actionClazzMirror.declarations.forEach((name, methodMirror) {
-          if (methodMirror is MethodMirror) {
-            var methodAnnotationInstance =
-                lookupMetadataOfType(methodMirror.metadata, DirectMethod);
-            if (methodAnnotationInstance != null) {
-              LOGGER.fine("Register direct method: ${name}");
+        var actionMethodMap = {};
+        for (var method in methods) {
+          LOGGER.fine("Register direct method: ${method}");
 
-              methods[name] = methodMirror;
-            }
-          }
-        });
+          actionMethodMap[method.simpleName] = method;
+        }
+
+        var actionName = Registry.getSimpleName(clazz);
+        _directActions[actionName] = clazz;
+        _directMethods[actionName] = actionMethodMap;
       }
-
-      try {
-        actionClazzMirror = actionClazzMirror.superclass;
-      } on NoSuchCapabilityError catch (e) {
-        LOGGER.finest(
-            "super class of ${actionClazzMirror.simpleName} is not reflected",
-            e);
-
-        actionClazzMirror = null;
-      }
-    }
-
-    if (methods.isNotEmpty) {
-      LOGGER.fine("Register direct action: ${mainClazzMirror.simpleName}");
-
-      _directActions[mainClazzMirror.simpleName] =
-          mainClazzMirror.reflectedType;
-      _directMethods[mainClazzMirror.simpleName] = methods;
     }
   }
 
@@ -455,25 +429,21 @@ class DirectManager {
     return apiMap;
   }
 
-  _invokeDirectService(DirectRequest request) {
-    var result;
-    var actionType = _directActions[request.action];
-    if (actionType == null) {
-      throw new ArgumentError("Direct action not defined: ${request.action}");
-    }
-    var service = Registry.lookupObject(actionType);
-    var serviceMirror = injectable.reflect(service);
-    MethodMirror methodMirror = _directMethods[request.action][request.method];
-    if (methodMirror == null) {
+  void _checkDirectMethod(String directAction, String directMethod) {
+    if (!_directActions.containsKey(directAction)) {
+      throw new ArgumentError("Direct action not defined: $directAction");
+    } else if (!_directMethods[directAction].containsKey(directMethod)) {
       throw new ArgumentError(
-          "Direct method not defined: ${request.action}.${request.method}");
-    } else if (methodMirror.parameters.isEmpty) {
-      result = serviceMirror.invoke(methodMirror.simpleName, []);
-    } else {
-      result = serviceMirror.invoke(methodMirror.simpleName, request.data);
+          "Direct method not defined: $directAction.$directMethod");
     }
+  }
 
-    return result;
+  _invokeDirectService(DirectRequest request) {
+    _checkDirectMethod(request.action, request.method);
+
+    var actionType = _directActions[request.action];
+    return Registry.invokeMethod(
+        Registry.lookupObject(actionType), request.method, request.data ?? []);
   }
 }
 
