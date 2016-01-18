@@ -1,4 +1,4 @@
-part of directbackendapi;
+part of dartdirect.backend;
 
 const OnDirectRequestRegistered onDirectRequestRegistered =
     const OnDirectRequestRegistered();
@@ -24,11 +24,9 @@ class BusinessError extends Error {
   BusinessError(this.message,
       [this.forceCommit = false, this.notifyToBackend = false]);
 
-  String get type => runtimeType.toString();
+  String toString() => "$message [BusinessError]";
 
-  String toString() => "$message [$type]";
-
-  Map toJson() => {"type": type, "message": message};
+  Map toJson() => {"type": "BusinessError", "message": message};
 }
 
 abstract class DirectObject {
@@ -195,9 +193,7 @@ abstract class RequestInterceptorHandler {
 }
 
 @injectable
-class DirectManager {
-  static Logger LOGGER = new Logger("directbackend.DirectManager");
-
+class DirectManager extends Loggable {
   Map<String, Type> _directActions = {};
   Map<String, Map<String, MethodMirror>> _directMethods = {};
 
@@ -210,7 +206,7 @@ class DirectManager {
   Provider<RequestInterceptorHandler> REQUEST_INTERCEPTOR_HANDLER_PROVIDER;
 
   DirectManager(this.enviroment) {
-    LOGGER.config("Direct Manager registered in $enviroment enviroment");
+    config("Direct Manager registered in $enviroment enviroment");
   }
 
   List getDirectMethodAnnotations(String directAction, String directMethod) {
@@ -222,17 +218,17 @@ class DirectManager {
   }
 
   void registerDirectAction(Type clazz) {
-    LOGGER.finest("Check if $clazz is a direct action");
+    finest("Check if $clazz is a direct action");
 
     if (Registry.isTypeAnnotatedWith(clazz, DirectAction)) {
       var methods = Registry.getAllMethodsAnnotatedWith(clazz, DirectMethod);
 
       if (methods.isNotEmpty) {
-        LOGGER.fine("Register direct action: $clazz");
+        fine("Register direct action: $clazz");
 
         var actionMethodMap = {};
         for (var method in methods) {
-          LOGGER.fine("Register direct method: ${method}");
+          fine("Register direct method: ${method}");
 
           actionMethodMap[method.simpleName] = method;
         }
@@ -245,7 +241,7 @@ class DirectManager {
   }
 
   void deregisterAllDirectActions() {
-    LOGGER.fine("Deregister all direct actions");
+    fine("Deregister all direct actions");
 
     _directActions.clear();
     _directMethods.clear();
@@ -266,7 +262,7 @@ class DirectManager {
       DirectCallback callback) {
     Completer completer = new Completer();
     Stopwatch watcher = new Stopwatch()..start();
-    LOGGER.fine("Direct call...");
+    fine("Direct call...");
 
     if (path == "/direct/api") {
       callback(_getDartApi(base, application, false), {});
@@ -307,7 +303,7 @@ class DirectManager {
 
         var jsonResponse = JSON.encode(directResponse);
 
-        LOGGER.info(
+        info(
             "Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
         callback(jsonResponse, directRequest.responseHeaders);
@@ -317,14 +313,14 @@ class DirectManager {
         DirectResponse directResponse;
         new Future.sync(() {
           if (error is BusinessError) {
-            LOGGER.info("Business error", error, stacktrace);
+            info("Business error", error, stacktrace);
             directResponse = new DirectResultResponse.throwBusinessError(
                 directRequest, error);
 
             if (error.forceCommit) {
               if (transaction) {
                 return _commitTransaction().catchError((error, stacktrace) {
-                  LOGGER.severe("Commit error", error, stacktrace);
+                  severe("Commit error", error, stacktrace);
                   directResponse = new DirectErrorResponse(directRequest, error,
                       error.toString()); // error: "not_in_role","not_logged");
                 });
@@ -332,18 +328,18 @@ class DirectManager {
             } else {
               if (transaction) {
                 return _rollbackTransaction().catchError((error, stacktrace) {
-                  LOGGER.severe("Rollback error", error, stacktrace);
+                  severe("Rollback error", error, stacktrace);
                 });
               }
             }
           } else {
-            LOGGER.severe("System error", error, stacktrace);
+            severe("System error", error, stacktrace);
 
             directResponse = new DirectErrorResponse(directRequest, error,
                 error.toString()); // error: "not_in_role","not_logged");
             if (transaction) {
               return _rollbackTransaction().catchError((error, stacktrace) {
-                LOGGER.severe("Rollback error", error, stacktrace);
+                severe("Rollback error", error, stacktrace);
               });
             }
           }
@@ -354,7 +350,7 @@ class DirectManager {
 
           var jsonResponse = JSON.encode(directResponse);
 
-          LOGGER.info(
+          info(
               "Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
           callback(jsonResponse, {});
@@ -449,8 +445,6 @@ class DirectManager {
 
 @injectable
 class DirectHandler {
-  static Logger LOGGER = new Logger("directbackend.DirectHandler");
-
   @Inject(DirectManager)
   Provider<DirectManager> directManagerProvider;
 

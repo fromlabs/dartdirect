@@ -1,4 +1,4 @@
-part of directclient;
+part of dartdirect.client;
 
 // TODO come intercettiamo la close?
 

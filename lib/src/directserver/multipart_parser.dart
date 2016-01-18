@@ -1,4 +1,4 @@
-part of directserver;
+part of dartdirect.server;
 
 class MultipartConverter extends Converter<List<int>, MultipartRequest> {
 

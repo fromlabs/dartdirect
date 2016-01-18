@@ -1,4 +1,4 @@
-library directbackendapi;
+library dartdirect.backend;
 
 import 'package:dartregistry/dart_registry.dart';
 
@@ -10,7 +10,7 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 
-part "src/directbackend/direct_backend_api.dart";
+part "src/directbackend/direct_backend.dart";
 part "src/directbackend/direct_manager.dart";
 
-final Logger _libraryLogger = new Logger("directbackendapi");
+final Logger _libraryLogger = new Logger("dartdirect.backend_api");

@@ -1,4 +1,4 @@
-part of directbackendapi;
+part of dartdirect.backend;
 
 // TODO potenziare annotazioni con gestione domini
 
@@ -17,7 +17,7 @@ class DirectMethod {
   const DirectMethod();
 }
 
-@injectionModule
+@injectable
 abstract class DirectModule extends RegistryModule {
   Type get transactionHandlerClazz;
 
@@ -29,8 +29,6 @@ abstract class DirectModule extends RegistryModule {
   Future configure(Map<String, dynamic> parameters) {
     return super.configure(parameters).then((_) {
       this.directManager = new DirectManager(DIRECT_ENVIROMENT);
-
-      bindProvideFunction(Logger, Scope.ISOLATE, provideLogger);
 
       bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
 
@@ -51,8 +49,6 @@ abstract class DirectModule extends RegistryModule {
     this.directManager = null;
     return super.unconfigure();
   }
-
-  Logger provideLogger() => new Logger("directbackend");
 
   void onBindingAdded(Type clazz) {
     this.directManager.registerDirectAction(clazz);
@@ -107,22 +103,23 @@ class DirectParams {
 
   Set<DirectFilter> getFiltersByName(String name) {
     var result = new Set();
-    filters.forEach((DirectFilter directFilter) {
+
+    for (var directFilter in filters) {
       if (directFilter.field == name) {
         result.add(directFilter);
       }
-    });
+    }
     return result;
   }
 
   bool hasFilterOn(String name) {
     bool hasFilter = false;
-    filters.forEach((DirectFilter directFilter) {
+    for (var directFilter in filters) {
       if (directFilter.field == name) {
         hasFilter = true;
-        return;
+        break;
       }
-    });
+    }
     return hasFilter;
   }
 
@@ -144,9 +141,9 @@ class DirectParams {
 
     List<DirectFilter> filters = new List<DirectFilter>();
     if (filterMaps != null) {
-      filterMaps.forEach((directFilterMap) {
+      for (var directFilterMap in filterMaps) {
         filters.add(new DirectFilter(directFilterMap));
-      });
+      }
     }
 
     return filters;

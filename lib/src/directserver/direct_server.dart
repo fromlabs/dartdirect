@@ -1,6 +1,6 @@
-part of directserver;
+part of dartdirect.server;
 
-class DevDirectIsolateHandler {
+class DevDirectIsolateHandler extends Loggable {
   final Type module;
 
   final Map<String, dynamic> parameters;
@@ -17,8 +17,7 @@ class DevDirectIsolateHandler {
             .lookupObject(DirectHandler)
             .directCall(new DevServerDirectCall(message)))
         .catchError((error, stacktrace) {
-      print("Gestire errore generico: $error");
-      print(stacktrace);
+      severe("Handler error", error, stacktrace);
     })
         .whenComplete(() => Registry.closeScope(Scope.ISOLATE))
         .whenComplete(() => Registry.unload());
@@ -100,12 +99,12 @@ class DirectServer extends AbstractDirectServer {
   @override
   Future start() {
     ProcessSignal.SIGTERM.watch().listen((ProcessSignal signal) {
-      print("Catch TERMINATION signal");
+      info("Catch TERMINATION signal");
       this._stop().whenComplete(() => exit(0));
     });
 
     ProcessSignal.SIGINT.watch().listen((ProcessSignal signal) {
-      print("Catch INTERUPT signal");
+      info("Catch INTERUPT signal");
       this._stop().whenComplete(() => exit(0));
     });
 
@@ -126,9 +125,7 @@ class DirectServer extends AbstractDirectServer {
   }
 }
 
-abstract class AbstractDirectServer {
-  static Logger LOGGER = new Logger("directserver");
-
+abstract class AbstractDirectServer extends Loggable {
   final String _host;
 
   final num _port;
@@ -151,15 +148,19 @@ abstract class AbstractDirectServer {
         this._port = port,
         this._autoCompress = autoCompress;
 
+  Logger createLogger() {
+    return new Logger("dartdirect.server.$runtimeType");
+  }
+
   void handleRequest(
       String base, String application, String path, HttpRequest request);
 
   Future start() {
     return HttpServer.bind(_host, _port).then((server) {
-      print(
+      info(
           "Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
 
-      print("Host application mappings: ${_hostApplicationMappings}");
+      info("Host application mappings: ${_hostApplicationMappings}");
 
       server.autoCompress = this._autoCompress;
 
@@ -167,8 +168,10 @@ abstract class AbstractDirectServer {
 
       server.listen((HttpRequest request) async {
         request.response.headers.add("Access-Control-Allow-Origin", "*");
-        request.response.headers.add("Access-Control-Allow-Headers", "X-Requested-With,Content-Type,environment,locale,code-base,domain,authorization");
-        request.response.headers.add("Access-Control-Expose-Headers", "authorization");
+        request.response.headers.add("Access-Control-Allow-Headers",
+            "X-Requested-With,Content-Type,environment,locale,code-base,domain,authorization");
+        request.response.headers
+            .add("Access-Control-Expose-Headers", "authorization");
         request.response.headers.set("Access-Control-Allow-Methods", "POST");
 
         // request.response.headers.remove("X-Frame-Options", "SAMEORIGIN");
@@ -177,7 +180,7 @@ abstract class AbstractDirectServer {
         if (request.method == "OPTIONS") {
           request.response.close();
         } else {
-          LOGGER.fine("Serving request: ${request.uri}");
+          fine("Serving request: ${request.uri}");
 
           var directUri;
           var host = request.headers.host;
@@ -186,7 +189,9 @@ abstract class AbstractDirectServer {
           var parts = request.uri.pathSegments;
 
           if (application != null) {
-            directUri = parts.length > 0 && parts[0] == "direct" ? "/" + parts.join("/") : null;
+            directUri = parts.length > 0 && parts[0] == "direct"
+                ? "/" + parts.join("/")
+                : null;
           } else if (parts.length > 1 && parts[1] == "direct") {
             application = parts[0];
             directUri = "/" + parts.sublist(1).join("/");
@@ -200,7 +205,7 @@ abstract class AbstractDirectServer {
 
           if (directUri != null) {
             if (directUri == "/direct/api") {
-              LOGGER.fine("Direct api request");
+              fine("Direct api request");
 
               request.response.headers.contentType = new ContentType(
                   "application", "javascript",
@@ -208,7 +213,7 @@ abstract class AbstractDirectServer {
 
               handleRequest(null, application, "/direct/api", request);
             } else {
-              LOGGER.fine("Direct action request: $directUri");
+              fine("Direct action request: $directUri");
 
               request.response.headers.contentType =
                   new ContentType("application", "json", charset: "utf-8");
@@ -216,7 +221,7 @@ abstract class AbstractDirectServer {
               handleRequest(null, application, directUri, request);
             }
           } else {
-            LOGGER.fine("Static content request: ${request.uri}");
+            fine("Static content request: ${request.uri}");
 
             var absolutePath = _webUri.path.endsWith("/")
                 ? _webUri.path.substring(0, _webUri.path.length - 1)
@@ -232,10 +237,12 @@ abstract class AbstractDirectServer {
               if (request.uri.path.endsWith("/")) {
                 absolutePath += "index.html";
               } else {
-                var fragment = request.uri.hasFragment ? "#${request.uri.fragment}" : "";
+                var fragment =
+                    request.uri.hasFragment ? "#${request.uri.fragment}" : "";
                 var query = request.uri.hasQuery ? "?${request.uri.query}" : "";
 
-                request.response.redirect(request.uri.resolve("${request.uri.path}/$fragment$query"));
+                request.response.redirect(
+                    request.uri.resolve("${request.uri.path}/$fragment$query"));
                 return;
               }
             }
