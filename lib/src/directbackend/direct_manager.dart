@@ -451,16 +451,14 @@ class DirectManager {
 class DirectHandler {
   static Logger LOGGER = new Logger("directbackend.DirectHandler");
 
-  // TODO verificare se possibile iniettarlo
-
-  static ProvideFunction<DirectManager> _DIRECT_MANAGER_SERVICE_PROVIDE =
-      Registry.lookupProvideFunction(DirectManager);
+  @Inject(DirectManager)
+  Provider<DirectManager> directManagerProvider;
 
   Future<String> get dartApi =>
-      _scopedCall(() => _DIRECT_MANAGER_SERVICE_PROVIDE().dartApi);
+      _scopedCall(() => directManagerProvider.get().dartApi);
 
-  Future directCall(DirectCall directCall) => _scopedCall(
-      () => _DIRECT_MANAGER_SERVICE_PROVIDE().directCall(directCall));
+  Future directCall(DirectCall directCall) =>
+      _scopedCall(() => directManagerProvider.get().directCall(directCall));
 
   _scopedCall(ScopeRunnable runnable) =>
       Registry.runInScope(DirectScope.REQUEST, runnable);
