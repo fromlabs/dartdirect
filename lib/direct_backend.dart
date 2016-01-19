@@ -2,9 +2,6 @@ library dartdirect.backend;
 
 import 'package:dartregistry/dart_registry.dart';
 
-@GlobalQuantifyCapability(r"^logging.Logger$", injectable)
-import "package:reflectable/reflectable.dart";
-
 import "dart:convert";
 import 'dart:async';
 

@@ -194,8 +194,8 @@ abstract class RequestInterceptorHandler {
 
 @injectable
 class DirectManager extends Loggable {
-  Map<String, Type> _directActions = {};
-  Map<String, Map<String, MethodMirror>> _directMethods = {};
+  Map<String, ClassDescriptor> _directActions = {};
+  Map<String, Map<String, MethodDescriptor>> _directMethods = {};
 
   final String enviroment;
 
@@ -212,30 +212,31 @@ class DirectManager extends Loggable {
   List getDirectMethodAnnotations(String directAction, String directMethod) {
     _checkDirectMethod(directAction, directMethod);
 
-    var actionType = _directActions[directAction];
-
-    return Registry.getMethodAnnotations(actionType, directMethod);
+    return _directMethods[directAction][directMethod].annotations;
   }
 
   void registerDirectAction(Type clazz) {
     finest("Check if $clazz is a direct action");
 
-    if (Registry.isTypeAnnotatedWith(clazz, DirectAction)) {
-      var methods = Registry.getAllMethodsAnnotatedWith(clazz, DirectMethod);
+    var classDescriptor = Registry.getClass(clazz);
 
-      if (methods.isNotEmpty) {
-        fine("Register direct action: $clazz");
+    if (classDescriptor != null &&
+        Registry.isClassAnnotatedWith(classDescriptor, DirectAction)) {
+      var methodDescriptors =
+          Registry.getAllMethodsAnnotatedWith(classDescriptor, DirectMethod);
+
+      if (methodDescriptors.isNotEmpty) {
+        fine("Register direct action: $classDescriptor");
 
         var actionMethodMap = {};
-        for (var method in methods) {
+        for (var method in methodDescriptors) {
           fine("Register direct method: ${method}");
 
-          actionMethodMap[method.simpleName] = method;
+          actionMethodMap[method.name] = method;
         }
 
-        var actionName = Registry.getSimpleName(clazz);
-        _directActions[actionName] = clazz;
-        _directMethods[actionName] = actionMethodMap;
+        _directActions[classDescriptor.simpleName] = classDescriptor;
+        _directMethods[classDescriptor.simpleName] = actionMethodMap;
       }
     }
   }
@@ -418,7 +419,7 @@ class DirectManager extends Loggable {
         Map<String, Object> methodMap = {};
         methodList.add(methodMap);
         methodMap["name"] = method;
-        methodMap["len"] = mirror.parameters.length;
+        methodMap["len"] = mirror.parametersCount;
       });
     });
 
@@ -437,9 +438,12 @@ class DirectManager extends Loggable {
   _invokeDirectService(DirectRequest request) {
     _checkDirectMethod(request.action, request.method);
 
-    var actionType = _directActions[request.action];
+    var methodDescriptor = _directMethods[request.action][request.method];
+
     return Registry.invokeMethod(
-        Registry.lookupObject(actionType), request.method, request.data ?? []);
+        Registry.lookupObject(methodDescriptor.classDescriptor.type),
+        methodDescriptor,
+        request.data ?? []);
   }
 }
 

@@ -1,26 +1,28 @@
 part of dartdirect.server;
 
 class DevDirectIsolateHandler extends Loggable {
-  final Type module;
+  final RegistryModule module;
 
-  final Map<String, dynamic> parameters;
-
-  DevDirectIsolateHandler(this.module, [this.parameters = const {}]) {
+  DevDirectIsolateHandler(this.module) {
     DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
   }
 
-  void handleRequest(dynamic message) {
-    Registry
-        .load(module, parameters)
-        .then((_) => Registry.openScope(Scope.ISOLATE))
-        .then((_) => Registry
-            .lookupObject(DirectHandler)
-            .directCall(new DevServerDirectCall(message)))
-        .catchError((error, stacktrace) {
+  Future handleRequest(dynamic message) async {
+    try {
+      await Registry.load(module);
+
+      await Registry.openScope(Scope.ISOLATE);
+
+      await Registry
+          .lookupObject(DirectHandler)
+          .directCall(new DevServerDirectCall(message));
+    } catch (error, stacktrace) {
       severe("Handler error", error, stacktrace);
-    })
-        .whenComplete(() => Registry.closeScope(Scope.ISOLATE))
-        .whenComplete(() => Registry.unload());
+    } finally {
+      await Registry.closeScope(Scope.ISOLATE);
+
+      await Registry.unload();
+    }
   }
 }
 
@@ -77,17 +79,14 @@ class DevDirectServer extends AbstractDirectServer {
 }
 
 class DirectServer extends AbstractDirectServer {
-  final Type module;
-
-  final Map<String, dynamic> parameters;
+  final RegistryModule module;
 
   DirectServer(
       {String host: "0.0.0.0",
       num port: 8081,
       Map<String, String> hostApplicationMappings: const {},
       Uri webUri,
-      this.module,
-      this.parameters: const {}})
+      this.module})
       : super(
             host: host,
             port: port,
@@ -97,7 +96,7 @@ class DirectServer extends AbstractDirectServer {
   }
 
   @override
-  Future start() {
+  Future start() async {
     ProcessSignal.SIGTERM.watch().listen((ProcessSignal signal) {
       info("Catch TERMINATION signal");
       this._stop().whenComplete(() => exit(0));
@@ -108,10 +107,11 @@ class DirectServer extends AbstractDirectServer {
       this._stop().whenComplete(() => exit(0));
     });
 
-    return Registry
-        .load(module, parameters)
-        .then((_) => Registry.openScope(Scope.ISOLATE))
-        .then((_) => super.start());
+    await Registry.load(module);
+
+    await Registry.openScope(Scope.ISOLATE);
+
+    await super.start();
   }
 
   Future _stop() =>

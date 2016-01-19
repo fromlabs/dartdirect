@@ -25,29 +25,34 @@ abstract class DirectModule extends RegistryModule {
 
   DirectManager directManager;
 
+  final Map<String, dynamic> parameters;
+
+  DirectModule(this.parameters);
+
   @override
-  Future configure(Map<String, dynamic> parameters) {
-    return super.configure(parameters).then((_) {
-      this.directManager = new DirectManager(DIRECT_ENVIROMENT);
+  Future configure() async {
+    await super.configure();
 
-      bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
+    this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 
-      bindClass(RequestInterceptorHandler, Scope.ISOLATE,
-          requestInterceptorHandlerClazz);
+    bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
 
-      bindInstance(DirectManager, this.directManager);
+    bindClass(RequestInterceptorHandler, Scope.ISOLATE,
+        requestInterceptorHandlerClazz);
 
-      bindClass(DirectHandler, Scope.ISOLATE);
+    bindInstance(DirectManager, this.directManager);
 
-      bindClass(DirectRequest, DirectScope.REQUEST);
-    });
+    bindClass(DirectHandler, Scope.ISOLATE);
+
+    bindClass(DirectRequest, DirectScope.REQUEST);
   }
 
   @override
-  Future unconfigure() {
+  Future unconfigure() async {
     this.directManager.deregisterAllDirectActions();
     this.directManager = null;
-    return super.unconfigure();
+
+    await super.unconfigure();
   }
 
   void onBindingAdded(Type clazz) {
