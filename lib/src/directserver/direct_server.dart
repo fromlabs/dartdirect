@@ -9,7 +9,7 @@ class DevDirectIsolateHandler extends Loggable {
 
   Future handleRequest(dynamic message) async {
     try {
-      await Registry.load(module);
+      Registry.load(module);
 
       await Registry.openScope(Scope.ISOLATE);
 
@@ -21,7 +21,7 @@ class DevDirectIsolateHandler extends Loggable {
     } finally {
       await Registry.closeScope(Scope.ISOLATE);
 
-      await Registry.unload();
+      Registry.unload();
     }
   }
 }
@@ -107,15 +107,20 @@ class DirectServer extends AbstractDirectServer {
       this._stop().whenComplete(() => exit(0));
     });
 
-    await Registry.load(module);
+    Registry.load(module);
 
     await Registry.openScope(Scope.ISOLATE);
 
     await super.start();
   }
 
-  Future _stop() =>
-      Registry.closeScope(Scope.ISOLATE).whenComplete(() => Registry.unload());
+  Future _stop() async {
+    try {
+      await Registry.closeScope(Scope.ISOLATE);
+    } finally {
+      Registry.unload()
+    }
+  }
 
   void handleRequest(
       String base, String application, String path, HttpRequest request) {

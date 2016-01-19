@@ -5,7 +5,7 @@ part of dartdirect.client;
 Future initializeClientDirectHandling(DirectModule module) async {
   DIRECT_ENVIROMENT = context["DIRECT_ENVIROMENT"];
 
-  await Registry.load(module);
+  Registry.load(module);
 
   await Registry.openScope(Scope.ISOLATE);
 

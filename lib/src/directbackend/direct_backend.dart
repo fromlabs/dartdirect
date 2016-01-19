@@ -30,9 +30,7 @@ abstract class DirectModule extends RegistryModule {
   DirectModule(this.parameters);
 
   @override
-  Future configure() async {
-    await super.configure();
-
+  void configure() {
     this.directManager = new DirectManager(DIRECT_ENVIROMENT);
 
     bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
@@ -48,11 +46,9 @@ abstract class DirectModule extends RegistryModule {
   }
 
   @override
-  Future unconfigure() async {
+  void unconfigure() {
     this.directManager.deregisterAllDirectActions();
     this.directManager = null;
-
-    await super.unconfigure();
   }
 
   void onBindingAdded(Type clazz) {
