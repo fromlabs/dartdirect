@@ -8,7 +8,8 @@ class DevDirectIsolateHandler extends Loggable {
   }
 
   Future handleRequest(dynamic message) async {
-    try {
+    // faccio così per catturare errori anche asincroni non gestiti
+    return Chain.capture(() async {
       Registry.load(module);
 
       await Registry.openScope(Scope.ISOLATE);
@@ -16,13 +17,18 @@ class DevDirectIsolateHandler extends Loggable {
       await Registry
           .lookupObject(DirectHandler)
           .directCall(new DevServerDirectCall(message));
-    } catch (error, stacktrace) {
-      severe("Handler error", error, stacktrace);
-    } finally {
-      await Registry.closeScope(Scope.ISOLATE);
+    }, onError: (error, Chain chain) async {
+      _libraryLogger.severe("Server isolate error", error, chain.terse);
 
-      Registry.unload();
-    }
+      try {
+        await Registry.closeScope(Scope.ISOLATE);
+
+        Registry.unload();
+      } finally {
+        SendPort sendPort = message["sendPort"];
+        sendPort.send({"action": "error"});
+      }
+    });
   }
 }
 
@@ -61,6 +67,9 @@ class DevDirectServer extends AbstractDirectServer {
         message["responseHeaders"].forEach(
             (name, value) => request.response.headers.add(name, value));
         request.response.write(message["jsonResponse"]);
+        request.response.close();
+      } else if (message["action"] == "error") {
+        request.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
         request.response.close();
       }
     });
@@ -118,7 +127,7 @@ class DirectServer extends AbstractDirectServer {
     try {
       await Registry.closeScope(Scope.ISOLATE);
     } finally {
-      Registry.unload()
+      Registry.unload();
     }
   }
 
@@ -172,107 +181,119 @@ abstract class AbstractDirectServer extends Loggable {
       server.defaultResponseHeaders.removeAll("X-Frame-Options");
 
       server.listen((HttpRequest request) async {
-        request.response.headers.add("Access-Control-Allow-Origin", "*");
-        request.response.headers.add("Access-Control-Allow-Headers",
-            "X-Requested-With,Content-Type,environment,locale,code-base,domain,authorization");
-        request.response.headers
-            .add("Access-Control-Expose-Headers", "authorization");
-        request.response.headers.set("Access-Control-Allow-Methods", "POST");
+        // faccio così per catturare errori anche asincroni non gestiti
+        return Chain.capture(() async {
+          await _onRequest(request);
+        }, onError: (error, Chain chain) async {
+          _libraryLogger.severe("Server main error", error, chain.terse);
 
-        // request.response.headers.remove("X-Frame-Options", "SAMEORIGIN");
-        // request.response.headers.removeAll("X-Frame-Options");
+          request.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
 
-        if (request.method == "OPTIONS") {
-          request.response.close();
-        } else {
-          fine("Serving request: ${request.uri}");
-
-          var directUri;
-          var host = request.headers.host;
-          var application = this._hostApplicationMappings[host];
-          var explicitApplication = application == null;
-          var parts = request.uri.pathSegments;
-
-          if (application != null) {
-            directUri = parts.length > 0 && parts[0] == "direct"
-                ? "/" + parts.join("/")
-                : null;
-          } else if (parts.length > 1 && parts[1] == "direct") {
-            application = parts[0];
-            directUri = "/" + parts.sublist(1).join("/");
-          } else if (parts.length > 0 && parts[0] == "direct") {
-            application = null;
-            directUri = "/" + parts.join("/");
-          } else {
-            application = null;
-            directUri = null;
-          }
-
-          if (directUri != null) {
-            if (directUri == "/direct/api") {
-              fine("Direct api request");
-
-              request.response.headers.contentType = new ContentType(
-                  "application", "javascript",
-                  charset: "utf-8");
-
-              handleRequest(null, application, "/direct/api", request);
-            } else {
-              fine("Direct action request: $directUri");
-
-              request.response.headers.contentType =
-                  new ContentType("application", "json", charset: "utf-8");
-
-              handleRequest(null, application, directUri, request);
-            }
-          } else {
-            fine("Static content request: ${request.uri}");
-
-            var absolutePath = _webUri.path.endsWith("/")
-                ? _webUri.path.substring(0, _webUri.path.length - 1)
-                : _webUri.path;
-
-            if (!explicitApplication) {
-              absolutePath += "/$application";
-            }
-
-            absolutePath += request.uri.path;
-
-            if (await FileSystemEntity.isDirectory(absolutePath)) {
-              if (request.uri.path.endsWith("/")) {
-                absolutePath += "index.html";
-              } else {
-                var fragment =
-                    request.uri.hasFragment ? "#${request.uri.fragment}" : "";
-                var query = request.uri.hasQuery ? "?${request.uri.query}" : "";
-
-                request.response.redirect(
-                    request.uri.resolve("${request.uri.path}/$fragment$query"));
-                return;
-              }
-            }
-
-            final File file = new File(Uri.decodeFull(absolutePath));
-
-            bool found = await file.exists();
-
-            if (found) {
-              var mimeType = lookupMimeType(absolutePath.split("\\.").last);
-              if (mimeType != null) {
-                var split = mimeType.split("/");
-                request.response.headers.contentType =
-                    new ContentType(split[0], split[1]);
-              }
-
-              await file.openRead().pipe(request.response);
-            } else {
-              request.response.statusCode = HttpStatus.NOT_FOUND;
-              await request.response.close();
-            }
-          }
-        }
+          await request.response.close();
+        });
       });
     });
+  }
+
+  Future _onRequest(HttpRequest request) async {
+    request.response.headers.add("Access-Control-Allow-Origin", "*");
+    request.response.headers.add("Access-Control-Allow-Headers",
+        "X-Requested-With,Content-Type,environment,locale,code-base,domain,authorization");
+    request.response.headers
+        .add("Access-Control-Expose-Headers", "authorization");
+    request.response.headers.set("Access-Control-Allow-Methods", "POST");
+
+    // request.response.headers.remove("X-Frame-Options", "SAMEORIGIN");
+    // request.response.headers.removeAll("X-Frame-Options");
+
+    if (request.method == "OPTIONS") {
+      request.response.close();
+    } else {
+      fine("Serving request: ${request.uri}");
+
+      var directUri;
+      var host = request.headers.host;
+      var application = this._hostApplicationMappings[host];
+      var explicitApplication = application == null;
+      var parts = request.uri.pathSegments;
+
+      if (application != null) {
+        directUri = parts.length > 0 && parts[0] == "direct"
+            ? "/" + parts.join("/")
+            : null;
+      } else if (parts.length > 1 && parts[1] == "direct") {
+        application = parts[0];
+        directUri = "/" + parts.sublist(1).join("/");
+      } else if (parts.length > 0 && parts[0] == "direct") {
+        application = null;
+        directUri = "/" + parts.join("/");
+      } else {
+        application = null;
+        directUri = null;
+      }
+
+      if (directUri != null) {
+        if (directUri == "/direct/api") {
+          fine("Direct api request");
+
+          request.response.headers.contentType =
+              new ContentType("application", "javascript", charset: "utf-8");
+
+          handleRequest(null, application, "/direct/api", request);
+        } else {
+          fine("Direct action request: $directUri");
+
+          request.response.headers.contentType =
+              new ContentType("application", "json", charset: "utf-8");
+
+          handleRequest(null, application, directUri, request);
+        }
+      } else {
+        fine("Static content request: ${request.uri}");
+
+        var absolutePath = _webUri.path.endsWith("/")
+            ? _webUri.path.substring(0, _webUri.path.length - 1)
+            : _webUri.path;
+
+        if (!explicitApplication) {
+          absolutePath += "/$application";
+        }
+
+        absolutePath += request.uri.path;
+
+        if (await FileSystemEntity.isDirectory(absolutePath)) {
+          if (request.uri.path.endsWith("/")) {
+            absolutePath += "index.html";
+          } else {
+            var fragment =
+                request.uri.hasFragment ? "#${request.uri.fragment}" : "";
+            var query = request.uri.hasQuery ? "?${request.uri.query}" : "";
+
+            request.response.redirect(
+                request.uri.resolve("${request.uri.path}/$fragment$query"));
+            return;
+          }
+        }
+
+        final File file = new File(Uri.decodeFull(absolutePath));
+
+        bool found = await file.exists();
+
+        if (found) {
+          var mimeType = lookupMimeType(absolutePath.split("\\.").last);
+          if (mimeType != null) {
+            var split = mimeType.split("/");
+            request.response.headers.contentType =
+                new ContentType(split[0], split[1]);
+          }
+
+          await file.openRead().pipe(request.response);
+        } else {
+          request.response.statusCode = HttpStatus.NOT_FOUND;
+          await request.response.close();
+        }
+      }
+    }
   }
 }
 

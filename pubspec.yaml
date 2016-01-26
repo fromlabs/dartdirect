@@ -7,6 +7,7 @@ environment:
   sdk: ">=1.12.0 <2.0.0"
 dependencies:
   logging: ^0.11.0
+  stack_trace: ^1.5.0
   mime: ^0.9.3
   dartregistry:
     version: ^1.2.5
