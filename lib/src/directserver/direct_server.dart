@@ -8,15 +8,27 @@ class DevDirectIsolateHandler extends Loggable {
   }
 
   Future handleRequest(dynamic message) async {
+
     // faccio così per catturare errori anche asincroni non gestiti e chiudere la richiesta
     await runZoned(() async {
-      Registry.load(module);
+      try {
+        Registry.load(module);
 
-      await Registry.openScope(Scope.ISOLATE);
+        await Registry.openScope(Scope.ISOLATE);
 
-      await Registry
-          .lookupObject(DirectHandler)
-          .directCall(new DevServerDirectCall(message));
+        await Registry
+            .lookupObject(DirectHandler)
+            .directCall(new DevServerDirectCall(message));
+      } finally {
+        try {
+          await Registry.closeScope(Scope.ISOLATE);
+
+          Registry.unload();
+        } finally {
+          SendPort sendPort = message["sendPort"];
+          sendPort.send({"action": "error"});
+        }
+      }
     }, onError: (error, stacktrace) async {
       _libraryLogger.severe("Server isolate error", error, stacktrace);
 
@@ -97,6 +109,8 @@ class DevDirectServer extends AbstractDirectServer {
     try {
       await completer.future;
     } finally {
+      receivePort.close();
+
       await request.response.close();
     }
   }

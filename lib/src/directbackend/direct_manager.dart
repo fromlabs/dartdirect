@@ -261,8 +261,9 @@ class DirectManager extends Loggable {
       Map<String, List<String>> headers,
       MultipartRequest multipartRequest,
       DirectCallback callback) async {
-    Stopwatch watcher = new Stopwatch()..start();
     fine("Direct call...");
+
+    Stopwatch watcher = new Stopwatch()..start();
 
     if (path == "/direct/api") {
       callback(_getDartApi(base, application, false), {});
