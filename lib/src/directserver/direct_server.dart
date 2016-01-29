@@ -8,8 +8,8 @@ class DevDirectIsolateHandler extends Loggable {
   }
 
   Future handleRequest(dynamic message) async {
-    // faccio così per catturare errori anche asincroni non gestiti
-    return Chain.capture(() async {
+    // faccio così per catturare errori anche asincroni non gestiti e chiudere la richiesta
+    await runZoned(() async {
       Registry.load(module);
 
       await Registry.openScope(Scope.ISOLATE);
@@ -17,8 +17,8 @@ class DevDirectIsolateHandler extends Loggable {
       await Registry
           .lookupObject(DirectHandler)
           .directCall(new DevServerDirectCall(message));
-    }, onError: (error, Chain chain) async {
-      _libraryLogger.severe("Server isolate error", error, chain.terse);
+    }, onError: (error, stacktrace) async {
+      _libraryLogger.severe("Server isolate error", error, stacktrace);
 
       try {
         await Registry.closeScope(Scope.ISOLATE);
@@ -52,10 +52,13 @@ class DevDirectServer extends AbstractDirectServer {
         this._isolateUri = isolateUri,
         this._isolateArgs = isolateArgs;
 
-  void handleRequest(
-      String base, String application, String path, HttpRequest request) {
+  Future handleRequest(
+      String base, String application, String path, HttpRequest request) async {
     var receivePort = new ReceivePort();
-    receivePort.listen((message) {
+
+    var completer = new Completer();
+
+    receivePort.listen((message) async {
       if (message["action"] == "ready") {
         SendPort sendPort = message["sendPort"];
         request.listen((data) {
@@ -63,27 +66,39 @@ class DevDirectServer extends AbstractDirectServer {
         }, onDone: () {
           sendPort.send({"action": "close"});
         });
-      } else if (message["action"] == "response") {
-        message["responseHeaders"].forEach(
-            (name, value) => request.response.headers.add(name, value));
-        request.response.write(message["jsonResponse"]);
-        request.response.close();
-      } else if (message["action"] == "error") {
-        request.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
-        request.response.close();
+      } else {
+        try {
+          if (message["action"] == "response") {
+            message["responseHeaders"].forEach(
+                (name, value) => request.response.headers.add(name, value));
+            request.response.write(message["jsonResponse"]);
+          } else if (message["action"] == "error") {
+            request.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
+          }
+
+          completer.complete();
+        } catch (e, s) {
+          completer.completeError(e, s);
+        }
       }
     });
 
     Map<String, List<String>> headers = {};
     request.headers.forEach((name, values) => headers[name] = values);
 
-    Isolate.spawnUri(_isolateUri, _isolateArgs, {
+    await Isolate.spawnUri(_isolateUri, _isolateArgs, {
       "sendPort": receivePort.sendPort,
       "base": base,
       "application": application,
       "path": path,
       "headers": headers
     });
+
+    try {
+      await completer.future;
+    } finally {
+      await request.response.close();
+    }
   }
 }
 
@@ -131,9 +146,9 @@ class DirectServer extends AbstractDirectServer {
     }
   }
 
-  void handleRequest(
-      String base, String application, String path, HttpRequest request) {
-    Registry
+  Future handleRequest(
+      String base, String application, String path, HttpRequest request) async {
+    await Registry
         .lookupObject(DirectHandler)
         .directCall(new ServerDirectCall(base, application, path, request));
   }
@@ -166,7 +181,7 @@ abstract class AbstractDirectServer extends Loggable {
     return new Logger("dartdirect.server.$runtimeType");
   }
 
-  void handleRequest(
+  Future handleRequest(
       String base, String application, String path, HttpRequest request);
 
   Future start() {
@@ -182,13 +197,12 @@ abstract class AbstractDirectServer extends Loggable {
 
       server.listen((HttpRequest request) async {
         // faccio così per catturare errori anche asincroni non gestiti
-        return Chain.capture(() async {
+        await runZoned(() async {
           await _onRequest(request);
-        }, onError: (error, Chain chain) async {
-          _libraryLogger.severe("Server main error", error, chain.terse);
+        }, onError: (error, stacktrace) async {
+          _libraryLogger.severe("Server main error", error, stacktrace);
 
           request.response.statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
-
           await request.response.close();
         });
       });
@@ -207,7 +221,7 @@ abstract class AbstractDirectServer extends Loggable {
     // request.response.headers.removeAll("X-Frame-Options");
 
     if (request.method == "OPTIONS") {
-      request.response.close();
+      await request.response.close();
     } else {
       fine("Serving request: ${request.uri}");
 
@@ -239,14 +253,14 @@ abstract class AbstractDirectServer extends Loggable {
           request.response.headers.contentType =
               new ContentType("application", "javascript", charset: "utf-8");
 
-          handleRequest(null, application, "/direct/api", request);
+          await handleRequest(null, application, "/direct/api", request);
         } else {
           fine("Direct action request: $directUri");
 
           request.response.headers.contentType =
               new ContentType("application", "json", charset: "utf-8");
 
-          handleRequest(null, application, directUri, request);
+          await handleRequest(null, application, directUri, request);
         }
       } else {
         fine("Static content request: ${request.uri}");

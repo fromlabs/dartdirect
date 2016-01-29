@@ -5,7 +5,6 @@ import 'package:dartregistry/dart_registry.dart';
 import 'package:dartdirect/direct_backend.dart';
 
 import 'package:logging/logging.dart';
-import "package:stack_trace/stack_trace.dart";
 import 'package:mime/mime.dart';
 
 import "dart:io";

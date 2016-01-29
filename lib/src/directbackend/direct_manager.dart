@@ -260,15 +260,12 @@ class DirectManager extends Loggable {
       String json,
       Map<String, List<String>> headers,
       MultipartRequest multipartRequest,
-      DirectCallback callback) {
-    Completer completer = new Completer();
+      DirectCallback callback) async {
     Stopwatch watcher = new Stopwatch()..start();
     fine("Direct call...");
 
     if (path == "/direct/api") {
       callback(_getDartApi(base, application, false), {});
-
-      completer.complete();
     } else {
       // read parameters
       var decodedDirectRequest = JSON.decode(json);
@@ -277,91 +274,90 @@ class DirectManager extends Loggable {
       bool transaction = !decodedDirectRequest["method"].startsWith("get") &&
           !decodedDirectRequest["method"].startsWith("is");
 
-      directRequest
-          ._registerRequest(
-              application,
-              decodedDirectRequest["action"],
-              decodedDirectRequest["method"],
-              decodedDirectRequest["type"],
-              decodedDirectRequest["tid"],
-              decodedDirectRequest["data"],
-              multipartRequest,
-              headers)
-          .then((_) {
-        return _interceptRequestBegin().then((_) {
-          if (transaction) {
-            return _openTransaction();
-          }
-        });
-      }).then((_) => _invokeDirectService(directRequest)).then((value) {
+      try {
+        await directRequest._registerRequest(
+            application,
+            decodedDirectRequest["action"],
+            decodedDirectRequest["method"],
+            decodedDirectRequest["type"],
+            decodedDirectRequest["tid"],
+            decodedDirectRequest["data"],
+            multipartRequest,
+            headers);
+
+        await _interceptRequestBegin();
+
         if (transaction) {
-          return _commitTransaction().then((_) => value);
-        } else {
-          return value;
+          await _openTransaction();
         }
-      }).then((value) {
+
+        var value = await _invokeDirectService(directRequest);
+
+        if (transaction) {
+          await _commitTransaction();
+        }
+
         var directResponse = new DirectResultResponse(directRequest, value);
 
         var jsonResponse = JSON.encode(directResponse);
 
-        info(
-            "Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
+        info("Direct call ${directResponse.action}.${directResponse
+                .method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
         callback(jsonResponse, directRequest.responseHeaders);
-
-        completer.complete();
-      }).catchError((error, stacktrace) {
+      } catch (error, stacktrace) {
         DirectResponse directResponse;
-        new Future.sync(() {
-          if (error is BusinessError) {
-            info("Business error", error, stacktrace);
-            directResponse = new DirectResultResponse.throwBusinessError(
-                directRequest, error);
 
-            if (error.forceCommit) {
-              if (transaction) {
-                return _commitTransaction().catchError((error, stacktrace) {
-                  severe("Commit error", error, stacktrace);
-                  directResponse = new DirectErrorResponse(directRequest, error,
-                      error.toString()); // error: "not_in_role","not_logged");
-                });
-              }
-            } else {
-              if (transaction) {
-                return _rollbackTransaction().catchError((error, stacktrace) {
-                  severe("Rollback error", error, stacktrace);
-                });
+        if (error is BusinessError) {
+          info("Business error", error, stacktrace);
+          directResponse =
+              new DirectResultResponse.throwBusinessError(directRequest, error);
+
+          if (error.forceCommit) {
+            if (transaction) {
+              try {
+                await _commitTransaction();
+              } catch (error, stacktrace) {
+                severe("Commit error", error, stacktrace);
+                directResponse = new DirectErrorResponse(directRequest, error,
+                    error.toString()); // error: "not_in_role","not_logged");
               }
             }
           } else {
-            severe("System error", error, stacktrace);
-
-            directResponse = new DirectErrorResponse(directRequest, error,
-                error.toString()); // error: "not_in_role","not_logged");
             if (transaction) {
-              return _rollbackTransaction().catchError((error, stacktrace) {
+              try {
+                await _rollbackTransaction();
+              } catch (error, stacktrace) {
                 severe("Rollback error", error, stacktrace);
-              });
+              }
             }
           }
-        }).then((_) {
-          if (directResponse.isNotifyError) {
-            // TODO log errore
+        } else {
+          severe("System error", error, stacktrace);
+
+          directResponse = new DirectErrorResponse(directRequest, error,
+              error.toString()); // error: "not_in_role","not_logged");
+          if (transaction) {
+            try {
+              await _rollbackTransaction();
+            } catch (error, stacktrace) {
+              severe("Rollback error", error, stacktrace);
+            }
           }
+        }
 
-          var jsonResponse = JSON.encode(directResponse);
+        if (directResponse.isNotifyError) {
+          // TODO log errore
+        }
 
-          info(
-              "Direct call ${directResponse.action}.${directResponse.method} elapsed in ${watcher.elapsedMilliseconds} ms");
+        var jsonResponse = JSON.encode(directResponse);
 
-          callback(jsonResponse, {});
+        info("Direct call ${directResponse.action}.${directResponse
+                .method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
-          completer.complete();
-        });
-      });
+        callback(jsonResponse, {});
+      }
     }
-
-    return completer.future;
   }
 
   Future _openTransaction() =>
