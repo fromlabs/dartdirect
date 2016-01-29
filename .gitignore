@@ -1,7 +1,22 @@
-.DS_Store
-packages
+# Files and directories created by pub
 .packages
-.project
+.pub/
+build/
+packages
 pubspec.lock
-.pub
-.idea
+
+# Files created by dart2js
+*.dart.js
+*.part.js
+*.js.deps
+*.js.map
+*.info.json
+
+# Directory created by dartdoc
+doc/api/
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
