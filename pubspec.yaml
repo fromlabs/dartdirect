@@ -9,7 +9,7 @@ dependencies:
   logging: ^0.11.0
   mime: ^0.9.3
   dartregistry:
-    version: ^1.2.5
+    version: ^1.3.0
     hosted:
       name: dartregistry
       url: http://pub.primeapp.it:9091
