@@ -24,9 +24,11 @@ class BusinessError extends Error {
   BusinessError(this.message,
       [this.forceCommit = false, this.notifyToBackend = false]);
 
-  String toString() => "$message [BusinessError]";
+  String get type => runtimeType.toString();
 
-  Map toJson() => {"type": "BusinessError", "message": message};
+  String toString() => "$message [$type]";
+
+  Map toJson() => {"type": "$type", "message": message};
 }
 
 abstract class DirectObject {
@@ -313,6 +315,7 @@ class DirectManager extends Loggable {
           info("Business error", error, stacktrace);
           directResponse =
               new DirectResultResponse.throwBusinessError(directRequest, error);
+
 
           if (error.forceCommit) {
             if (transaction) {
