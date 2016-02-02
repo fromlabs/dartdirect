@@ -3,6 +3,11 @@ part of dartdirect.client;
 // TODO come intercettiamo la close?
 
 Future initializeClientDirectHandling(DirectModule module) async {
+  await Chain.capture(() => capturedInitializeClientDirectHandling(module),
+      onError: (e, s) => _libraryLogger.severe("Uncaught error", e, s));
+}
+
+Future capturedInitializeClientDirectHandling(DirectModule module) async {
   DIRECT_ENVIROMENT = context["DIRECT_ENVIROMENT"];
 
   Registry.load(module);
@@ -11,35 +16,36 @@ Future initializeClientDirectHandling(DirectModule module) async {
 
   var handler = Registry.lookupObject(DirectHandler);
 
-  context["onDartLoaded"].apply([]);
-
   context["dartApi"] = (dynamic callback) =>
       handler.dartApi.then((api) => callback.apply([api]));
 
   context["directCall"] = (String base, String application, String path,
-      String jsonRequest, String jsonHeaders, callback) {
-    var headers = {};
-    var headers1 = JSON.decode(jsonHeaders);
-    headers1.forEach((String key, value) {
-      key = key.toLowerCase();
+          String jsonRequest, String jsonHeaders, callback) =>
+      Chain.capture(() {
+        var headers = {};
+        var headers1 = JSON.decode(jsonHeaders);
+        headers1.forEach((String key, value) {
+          key = key.toLowerCase();
 
-      if (value == null) {
-        headers[key] = null;
-      } else if (value is List) {
-        headers[key] = (value as List)
-            .map((value2) => value2 != null ? value2.toString() : null)
-            .toList();
-      } else {
-        headers[key] = [value.toString()];
-      }
-    });
+          if (value == null) {
+            headers[key] = null;
+          } else if (value is List) {
+            headers[key] = (value as List)
+                .map((value2) => value2 != null ? value2.toString() : null)
+                .toList();
+          } else {
+            headers[key] = [value.toString()];
+          }
+        });
 
-    return handler.directCall(
-        new ClientDirectCall(base, application, path, jsonRequest, headers,
-            (jsonResponse, responseHeaders) {
-      callback.apply([jsonResponse, responseHeaders]);
-    }));
-  };
+        return handler.directCall(
+            new ClientDirectCall(base, application, path, jsonRequest, headers,
+                (jsonResponse, responseHeaders) {
+          callback.apply([jsonResponse, responseHeaders]);
+        }));
+      }, onError: (e, s) => _libraryLogger.severe("Uncaught error", e, s));
+
+  context["onDartLoaded"].apply([]);
 }
 
 class ClientDirectCall implements DirectCall {

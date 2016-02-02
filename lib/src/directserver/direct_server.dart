@@ -8,9 +8,8 @@ class DevDirectIsolateHandler extends Loggable {
   }
 
   Future handleRequest(dynamic message) async {
-
-    // faccio così per catturare errori anche asincroni non gestiti e chiudere la richiesta
-    await runZoned(() async {
+    // faccio così anche per catturare errori anche asincroni non gestiti e chiudere la richiesta
+    return Chain.capture(() async {
       try {
         Registry.load(module);
 
@@ -29,8 +28,8 @@ class DevDirectIsolateHandler extends Loggable {
           sendPort.send({"action": "error"});
         }
       }
-    }, onError: (error, stacktrace) async {
-      _libraryLogger.severe("Server isolate error", error, stacktrace);
+    }, onError: (e, s) async {
+      severe("Uncaught isolate error", e, s);
 
       try {
         await Registry.closeScope(Scope.ISOLATE);
@@ -134,7 +133,7 @@ class DirectServer extends AbstractDirectServer {
   }
 
   @override
-  Future start() async {
+  Future capturedStart() async {
     ProcessSignal.SIGTERM.watch().listen((ProcessSignal signal) {
       info("Catch TERMINATION signal");
       this._stop().whenComplete(() => exit(0));
@@ -149,7 +148,7 @@ class DirectServer extends AbstractDirectServer {
 
     await Registry.openScope(Scope.ISOLATE);
 
-    await super.start();
+    await super.capturedStart();
   }
 
   Future _stop() async {
@@ -199,6 +198,12 @@ abstract class AbstractDirectServer extends Loggable {
       String base, String application, String path, HttpRequest request);
 
   Future start() {
+    return Chain.capture(() {
+      return capturedStart();
+    }, onError: (e, s) => severe("Uncaught error", e, s));
+  }
+
+  Future capturedStart() {
     return HttpServer.bind(_host, _port).then((server) {
       info(
           "Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");

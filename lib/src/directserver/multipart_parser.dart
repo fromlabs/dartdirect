@@ -535,7 +535,7 @@ class FutureQueue<T> {
     _future.then((_) => _computation([], true)).then((_) {
       _completer.complete();
     }).catchError((error, stacktrace) {
-      print("Errore sulla close");
+      print("Error on close");
       _completer.completeError(error, stacktrace);
     });
     return future;
