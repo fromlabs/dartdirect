@@ -7,6 +7,10 @@ class DevDirectIsolateHandler extends Loggable {
     DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
   }
 
+  Logger createLogger() {
+    return new Logger("dartdirect.server.DevDirectIsolateHandler");
+  }
+
   Future handleRequest(dynamic message) async {
     // faccio così anche per catturare errori anche asincroni non gestiti e chiudere la richiesta
     return Chain.capture(() async {
