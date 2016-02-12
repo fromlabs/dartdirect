@@ -199,7 +199,7 @@ class DirectManager extends Loggable {
   Map<String, ClassDescriptor> _directActions = {};
   Map<String, Map<String, MethodDescriptor>> _directMethods = {};
 
-  final String enviroment;
+  final String environment;
 
   @Inject(TransactionHandler)
   Provider<TransactionHandler> TRANSACTION_HANDLER_PROVIDER;
@@ -207,8 +207,8 @@ class DirectManager extends Loggable {
   @Inject(RequestInterceptorHandler)
   Provider<RequestInterceptorHandler> REQUEST_INTERCEPTOR_HANDLER_PROVIDER;
 
-  DirectManager(this.enviroment) {
-    config("Direct Manager registered in $enviroment enviroment");
+  DirectManager(this.environment) {
+    config("Direct Manager registered in $environment environment");
   }
 
   List getDirectMethodAnnotations(String directAction, String directMethod) {

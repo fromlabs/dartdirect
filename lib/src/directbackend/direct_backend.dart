@@ -2,7 +2,7 @@ part of dartdirect.backend;
 
 // TODO potenziare annotazioni con gestione domini
 
-String DIRECT_ENVIROMENT;
+String DIRECT_ENVIRONMENT;
 
 const DirectAction directAction = const DirectAction();
 const DirectMethod directMethod = const DirectMethod();
@@ -31,7 +31,7 @@ abstract class DirectModule extends RegistryModule {
 
   @override
   void configure() {
-    this.directManager = new DirectManager(DIRECT_ENVIROMENT);
+    this.directManager = new DirectManager(DIRECT_ENVIRONMENT);
 
     bindClass(TransactionHandler, Scope.ISOLATE, transactionHandlerClazz);
 
@@ -59,9 +59,10 @@ abstract class DirectModule extends RegistryModule {
 typedef void DirectCallback(
     String jsonResponse, Map<String, List<String>> responseHeaders);
 
-class DirectEnviroment {
+class DirectEnvironment {
   static const String CLIENT = "CLIENT";
   static const String SERVER = "SERVER";
+  static const String TEST = "TEST";
 }
 
 class DirectParams {

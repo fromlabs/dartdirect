@@ -4,7 +4,7 @@ class DevDirectIsolateHandler extends Loggable {
   final RegistryModule module;
 
   DevDirectIsolateHandler(this.module) {
-    DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
+    DIRECT_ENVIRONMENT = DirectEnvironment.SERVER;
   }
 
   Logger createLogger() {
@@ -133,7 +133,7 @@ class DirectServer extends AbstractDirectServer {
             port: port,
             webUri: webUri,
             hostApplicationMappings: hostApplicationMappings) {
-    DIRECT_ENVIROMENT = DirectEnviroment.SERVER;
+    DIRECT_ENVIRONMENT = DirectEnvironment.SERVER;
   }
 
   @override

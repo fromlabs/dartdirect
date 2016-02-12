@@ -8,7 +8,7 @@ Future initializeClientDirectHandling(DirectModule module) async {
 }
 
 Future capturedInitializeClientDirectHandling(DirectModule module) async {
-  DIRECT_ENVIROMENT = context["DIRECT_ENVIROMENT"];
+  DIRECT_ENVIRONMENT = context["DIRECT_ENVIRONMENT"];
 
   Registry.load(module);
 
