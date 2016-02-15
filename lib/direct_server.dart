@@ -1,6 +1,6 @@
 library dartdirect.server;
 
-import 'package:dartregistry/dart_registry.dart';
+import 'package:dartregistry/dartregistry.dart';
 
 import 'package:dartdirect/direct_backend.dart';
 

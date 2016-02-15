@@ -1,6 +1,6 @@
 library dartdirect.backend;
 
-import 'package:dartregistry/dart_registry.dart';
+import 'package:dartregistry/dartregistry.dart';
 
 import "dart:convert";
 import 'dart:async';
