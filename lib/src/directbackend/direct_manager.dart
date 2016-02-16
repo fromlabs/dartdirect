@@ -273,6 +273,11 @@ class DirectManager extends Loggable {
       // read parameters
       var decodedDirectRequest = JSON.decode(json);
 
+      if (isLoggable(Level.FINEST)) {
+        var json = new JsonEncoder.withIndent("  ").convert(decodedDirectRequest);
+        finest("REQUEST: \r\n$json");
+      }
+
       DirectRequest directRequest = Registry.lookupObject(DirectRequest);
       bool transaction = !decodedDirectRequest["method"].startsWith("get") &&
           !decodedDirectRequest["method"].startsWith("is");
@@ -303,6 +308,11 @@ class DirectManager extends Loggable {
         var directResponse = new DirectResultResponse(directRequest, value);
 
         var jsonResponse = JSON.encode(directResponse);
+
+        if (isLoggable(Level.FINEST)) {
+          var json = new JsonEncoder.withIndent("  ").convert(directResponse);
+          finest("RESPONSE: \r\n$json");
+        }
 
         info("Direct call ${directResponse.action}.${directResponse
                 .method} elapsed in ${watcher.elapsedMilliseconds} ms");
@@ -355,6 +365,11 @@ class DirectManager extends Loggable {
         }
 
         var jsonResponse = JSON.encode(directResponse);
+
+        if (isLoggable(Level.FINEST)) {
+          var json = new JsonEncoder.withIndent("  ").convert(directResponse);
+          finest("RESPONSE: \r\n$json");
+        }
 
         info("Direct call ${directResponse.action}.${directResponse
                 .method} elapsed in ${watcher.elapsedMilliseconds} ms");
