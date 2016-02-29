@@ -211,6 +211,12 @@ class DirectManager extends Loggable {
     config("Direct Manager registered in $environment environment");
   }
 
+  List getDirectActionAnnotations(String directAction) {
+    _checkDirectAction(directAction);
+
+    return _directActions[directAction].annotations;
+  }
+
   List getDirectMethodAnnotations(String directAction, String directMethod) {
     _checkDirectMethod(directAction, directMethod);
 
@@ -274,7 +280,8 @@ class DirectManager extends Loggable {
       var decodedDirectRequest = JSON.decode(json);
 
       if (isLoggable(Level.FINEST)) {
-        var json = new JsonEncoder.withIndent("  ").convert(decodedDirectRequest);
+        var json =
+            new JsonEncoder.withIndent("  ").convert(decodedDirectRequest);
         finest("REQUEST: \r\n$json");
       }
 
@@ -325,7 +332,6 @@ class DirectManager extends Loggable {
           info("Business error", error, stacktrace);
           directResponse =
               new DirectResultResponse.throwBusinessError(directRequest, error);
-
 
           if (error.forceCommit) {
             if (transaction) {
@@ -441,10 +447,16 @@ class DirectManager extends Loggable {
     return apiMap;
   }
 
-  void _checkDirectMethod(String directAction, String directMethod) {
+  void _checkDirectAction(String directAction) {
     if (!_directActions.containsKey(directAction)) {
       throw new ArgumentError("Direct action not defined: $directAction");
-    } else if (!_directMethods[directAction].containsKey(directMethod)) {
+    }
+  }
+
+  void _checkDirectMethod(String directAction, String directMethod) {
+    _checkDirectAction(directAction);
+
+    if (!_directMethods[directAction].containsKey(directMethod)) {
       throw new ArgumentError(
           "Direct method not defined: $directAction.$directMethod");
     }
