@@ -41,7 +41,7 @@ Future capturedInitializeClientDirectHandling(DirectModule module) async {
         return handler.directCall(
             new ClientDirectCall(base, application, path, jsonRequest, headers,
                 (jsonResponse, responseHeaders) {
-          callback.apply([jsonResponse, responseHeaders]);
+          callback.apply([jsonResponse, new JsObject.jsify(responseHeaders)]);
         }));
       }, onError: (e, s) => _libraryLogger.severe("Uncaught error", e, s));
 

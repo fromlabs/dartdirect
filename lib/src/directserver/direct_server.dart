@@ -235,7 +235,7 @@ abstract class AbstractDirectServer extends Loggable {
   Future _onRequest(HttpRequest request) async {
     request.response.headers.add("Access-Control-Allow-Origin", "*");
     request.response.headers.add("Access-Control-Allow-Headers",
-        "X-Requested-With,Content-Type,environment,locale,code-base,domain,authorization,working-date");
+        "X-Requested-With,Content-Type,environment,locale,code-base,domain,authorization,working-date,caching");
     request.response.headers
         .add("Access-Control-Expose-Headers", "authorization");
     request.response.headers.set("Access-Control-Allow-Methods", "POST");
