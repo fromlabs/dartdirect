@@ -58,12 +58,7 @@ class DevDirectServer extends AbstractDirectServer {
       Uri webUri,
       Uri isolateUri,
       List<String> isolateArgs})
-      : super(
-            host: host,
-            port: port,
-            webUri: webUri,
-            hostApplicationMappings: hostApplicationMappings,
-            autoCompress: false),
+      : super(host: host, port: port, webUri: webUri, autoCompress: false),
         this._isolateUri = isolateUri,
         this._isolateArgs = isolateArgs;
 
@@ -128,11 +123,7 @@ class DirectServer extends AbstractDirectServer {
       Map<String, String> hostApplicationMappings: const {},
       Uri webUri,
       this.module})
-      : super(
-            host: host,
-            port: port,
-            webUri: webUri,
-            hostApplicationMappings: hostApplicationMappings) {
+      : super(host: host, port: port, webUri: webUri) {
     DIRECT_ENVIRONMENT = DirectEnvironment.SERVER;
   }
 
@@ -180,16 +171,12 @@ abstract class AbstractDirectServer extends Loggable {
 
   final bool _autoCompress;
 
-  final Map<String, String> _hostApplicationMappings;
-
   AbstractDirectServer(
       {String host: "0.0.0.0",
       num port: 8081,
-      Map<String, String> hostApplicationMappings: const {},
       Uri webUri,
       bool autoCompress: true})
-      : this._hostApplicationMappings = hostApplicationMappings,
-        this._webUri = webUri,
+      : this._webUri = webUri,
         this._host = host,
         this._port = port,
         this._autoCompress = autoCompress;
@@ -211,8 +198,6 @@ abstract class AbstractDirectServer extends Loggable {
     return HttpServer.bind(_host, _port).then((server) {
       info(
           "Server ${server.address}:${server.port} on ${new File.fromUri(_webUri).resolveSymbolicLinksSync()}");
-
-      info("Host application mappings: ${_hostApplicationMappings}");
 
       server.autoCompress = this._autoCompress;
 
@@ -249,16 +234,10 @@ abstract class AbstractDirectServer extends Loggable {
       fine("Serving request: ${request.uri}");
 
       var directUri;
-      var host = request.headers.host;
-      var application = this._hostApplicationMappings[host];
-      var explicitApplication = application == null;
       var parts = request.uri.pathSegments;
 
-      if (application != null) {
-        directUri = parts.length > 0 && parts[0] == "direct"
-            ? "/" + parts.join("/")
-            : null;
-      } else if (parts.length > 1 && parts[1] == "direct") {
+      var application = null;
+      if (parts.length > 1 && parts[1] == "direct") {
         application = parts[0];
         directUri = "/" + parts.sublist(1).join("/");
       } else if (parts.length > 0 && parts[0] == "direct") {
@@ -291,10 +270,6 @@ abstract class AbstractDirectServer extends Loggable {
         var absolutePath = _webUri.path.endsWith("/")
             ? _webUri.path.substring(0, _webUri.path.length - 1)
             : _webUri.path;
-
-        if (!explicitApplication) {
-          absolutePath += "/$application";
-        }
 
         absolutePath += request.uri.path;
 
@@ -342,14 +317,14 @@ class ServerDirectCall implements DirectCall {
 
   ServerDirectCall(this.base, this.application, this.path, this.request);
 
-  Future onRequest(Future directCall(
-      String base,
-      String application,
-      String path,
-      String json,
-      Map<String, List<String>> headers,
-      MultipartRequest multipartRequest,
-      DirectCallback callback)) {
+  Future onRequest(
+      Future directCall(
+          String base,
+          String application,
+          String path,
+          Map<String, dynamic> decodedDirectRequest,
+          Map<String, List<String>> headers,
+          DirectCallback callback)) {
     Completer completer = new Completer();
     Map<String, List<String>> headers = {};
     request.headers.forEach((name, values) => headers[name] = values);
@@ -357,60 +332,28 @@ class ServerDirectCall implements DirectCall {
     StreamController<List<int>> request2 = new StreamController(sync: true);
     StringBuffer buffer = new StringBuffer();
 
-    Future resultFuture;
-    String multipartAction;
-    String multipartMethod;
-    if (path != "/direct/api") {
-      var splits = path.split("/");
-      if (splits.length == 4) {
-        multipartAction = splits[2];
-        multipartMethod = splits[3];
-      }
-    }
-    if (multipartAction != null) {
-      MultipartConverter converter = new MultipartConverter(headers);
-      request2.stream
-          .transform(converter)
-          .listen((MultipartRequest multipartRequest) {
-        buffer.write("""
-					{
-						"action": "$multipartAction",
-						"method": "$multipartMethod",
-						"type": "upload",
-						"tid": 1
-					}
-				""");
-
-        resultFuture = directCall(base, application, path, buffer.toString(),
-            headers, multipartRequest, (jsonResponse, responseHeaders) {
-          responseHeaders.forEach(
-              (name, value) => request.response.headers.add(name, value));
-          request.response.write(jsonResponse);
-          request.response.close();
-        });
-      });
-    } else {
-      request2.stream
-          .transform(UTF8.decoder)
-          .listen((String chunk) => buffer.write(chunk));
-    }
+    request2.stream
+        .transform(UTF8.decoder)
+        .listen((String chunk) => buffer.write(chunk));
 
     request.listen((data) => request2.add(data), onDone: () {
-      request2.close().then((_) {
-        if (resultFuture != null) {
-          return resultFuture;
-        } else {
-          return directCall(
-              base, application, path, buffer.toString(), headers, null,
-              (jsonResponse, responseHeaders) {
-            responseHeaders.forEach(
-                (name, value) => request.response.headers.add(name, value));
-            request.response.write(jsonResponse);
-            request.response.close();
-          });
-        }
-      }).then((_) => completer.complete()).catchError(
-          (error, stacktrace) => completer.completeError(error, stacktrace));
+      request2
+          .close()
+          .then((_) {
+            var decodedDirectRequest = JSON.decode(buffer.toString());
+
+            return directCall(
+                base, application, path, decodedDirectRequest, headers,
+                (jsonResponse, responseHeaders) {
+              responseHeaders.forEach(
+                  (name, value) => request.response.headers.add(name, value));
+              request.response.write(jsonResponse);
+              request.response.close();
+            });
+          })
+          .then((_) => completer.complete())
+          .catchError((error, stacktrace) =>
+              completer.completeError(error, stacktrace));
     });
 
     return completer.future;
@@ -422,14 +365,14 @@ class DevServerDirectCall implements DirectCall {
 
   DevServerDirectCall(this.message);
 
-  Future onRequest(Future directCall(
-      String base,
-      String application,
-      String path,
-      String json,
-      Map<String, List<String>> headers,
-      MultipartRequest multipartRequest,
-      DirectCallback callback)) {
+  Future onRequest(
+      Future directCall(
+          String base,
+          String application,
+          String path,
+          Map<String, dynamic> decodedDirectRequest,
+          Map<String, List<String>> headers,
+          DirectCallback callback)) {
     Completer completer = new Completer();
     SendPort sendPort = message["sendPort"];
     String base = message["base"];
@@ -441,63 +384,26 @@ class DevServerDirectCall implements DirectCall {
 
     StringBuffer buffer = new StringBuffer();
 
-    Future resultFuture;
-    String multipartAction;
-    String multipartMethod;
-    if (path != "/direct/api") {
-      var splits = path.split("/");
-      if (splits.length == 4) {
-        multipartAction = splits[2];
-        multipartMethod = splits[3];
-      }
-    }
-    if (multipartAction != null) {
-      MultipartConverter converter = new MultipartConverter(headers);
-      request.stream
-          .transform(converter)
-          .listen((MultipartRequest multipartRequest) {
-        buffer.write("""
-						{
-							"action": "$multipartAction",
-							"method": "$multipartMethod",
-							"type": "upload",
-							"tid": 1
-						}
-					""");
-
-        resultFuture = directCall(base, application, path, buffer.toString(),
-            headers, multipartRequest, (jsonResponse, responseHeaders) {
-          sendPort.send({
-            "action": "response",
-            "jsonResponse": jsonResponse,
-            "responseHeaders": responseHeaders
-          });
-        });
-      });
-    } else {
-      request.stream
-          .transform(UTF8.decoder)
-          .listen((String chunk) => buffer.write(chunk));
-    }
+    request.stream
+        .transform(UTF8.decoder)
+        .listen((String chunk) => buffer.write(chunk));
 
     receivePort.listen((message) {
       if (message["action"] == "data") {
         request.add(message["data"]);
       } else if (message["action"] == "close") {
         request.close().then((_) {
-          if (resultFuture != null) {
-            return resultFuture;
-          } else {
-            return directCall(
-                base, application, path, buffer.toString(), headers, null,
-                (jsonResponse, responseHeaders) {
-              sendPort.send({
-                "action": "response",
-                "jsonResponse": jsonResponse,
-                "responseHeaders": responseHeaders
-              });
+          var decodedDirectRequest = JSON.decode(buffer.toString());
+
+          return directCall(
+              base, application, path, decodedDirectRequest, headers,
+              (jsonResponse, responseHeaders) {
+            sendPort.send({
+              "action": "response",
+              "jsonResponse": jsonResponse,
+              "responseHeaders": responseHeaders
             });
-          }
+          });
         }).then((_) {
           completer.complete();
         }).catchError((error, stacktrace) {

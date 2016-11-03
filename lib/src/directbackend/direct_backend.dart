@@ -57,7 +57,7 @@ abstract class DirectModule extends RegistryModule {
 }
 
 typedef void DirectCallback(
-    String jsonResponse, Map<String, List<String>> responseHeaders);
+    dynamic jsonResponse, Map<String, List<String>> responseHeaders);
 
 class DirectEnvironment {
   static const String CLIENT = "CLIENT";
@@ -318,18 +318,6 @@ class PagedList<T> {
   }
 }
 
-abstract class MultipartRequest {
-  Map<String, List<RequestParameter>> get parameters;
-
-  RequestProgress get progress;
-
-  Future get future;
-
-  void onProgress(progressHandler(RequestProgress progress, bool closed));
-
-  void onUploadParameter(parameterHandler(RequestParameter parameter));
-}
-
 abstract class RequestParameter {
   bool get isUpload;
 
@@ -351,8 +339,7 @@ abstract class DirectCall {
       String base,
       String application,
       String path,
-      String json,
+      Map<String, dynamic> decodedDirectRequest,
       Map<String, List<String>> headers,
-      MultipartRequest multipartRequest,
       DirectCallback callback));
 }

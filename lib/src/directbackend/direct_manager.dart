@@ -84,18 +84,14 @@ class DirectRequest extends DirectObject {
       String type,
       num tid,
       List<dynamic> data,
-      MultipartRequest multipartRequest,
       Map<String, List<String>> headers) {
     _application = application;
     _action = action;
     _method = method;
     _type = type;
     _tid = tid;
-    if (multipartRequest != null) {
-      _data = [multipartRequest];
-    } else {
-      _data = data;
-    }
+    _data = data;
+
     _headers = headers != null ? headers : const {};
     _responseHeaders = {};
 
@@ -265,9 +261,8 @@ class DirectManager extends Loggable {
       String base,
       String application,
       String path,
-      String json,
+      Map<String, dynamic> decodedDirectRequest,
       Map<String, List<String>> headers,
-      MultipartRequest multipartRequest,
       DirectCallback callback) async {
     fine("Direct call...");
 
@@ -276,9 +271,6 @@ class DirectManager extends Loggable {
     if (path == "/direct/api") {
       callback(_getDartApi(base, application, false), {});
     } else {
-      // read parameters
-      var decodedDirectRequest = JSON.decode(json);
-
       if (isLoggable(Level.FINEST)) {
         var json =
             new JsonEncoder.withIndent("  ").convert(decodedDirectRequest);
@@ -297,7 +289,6 @@ class DirectManager extends Loggable {
             decodedDirectRequest["type"],
             decodedDirectRequest["tid"],
             decodedDirectRequest["data"],
-            multipartRequest,
             headers);
 
         await _interceptRequestBegin();
@@ -314,8 +305,6 @@ class DirectManager extends Loggable {
 
         var directResponse = new DirectResultResponse(directRequest, value);
 
-        var jsonResponse = JSON.encode(directResponse);
-
         if (isLoggable(Level.FINEST)) {
           var json = new JsonEncoder.withIndent("  ").convert(directResponse);
           finest("RESPONSE: \r\n$json");
@@ -324,7 +313,7 @@ class DirectManager extends Loggable {
         info("Direct call ${directResponse.action}.${directResponse
                 .method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
-        callback(jsonResponse, directRequest.responseHeaders);
+        callback(directResponse, directRequest.responseHeaders);
       } catch (error, stacktrace) {
         DirectResponse directResponse;
 
@@ -370,8 +359,6 @@ class DirectManager extends Loggable {
           // TODO log errore
         }
 
-        var jsonResponse = JSON.encode(directResponse);
-
         if (isLoggable(Level.FINEST)) {
           var json = new JsonEncoder.withIndent("  ").convert(directResponse);
           finest("RESPONSE: \r\n$json");
@@ -380,7 +367,7 @@ class DirectManager extends Loggable {
         info("Direct call ${directResponse.action}.${directResponse
                 .method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
-        callback(jsonResponse, {});
+        callback(directResponse, {});
       }
     }
   }
