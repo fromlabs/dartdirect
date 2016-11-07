@@ -57,7 +57,7 @@ abstract class DirectModule extends RegistryModule {
 }
 
 typedef void DirectCallback(
-    dynamic jsonResponse, Map<String, List<String>> responseHeaders);
+    String jsonResponse, Map<String, List<String>> responseHeaders);
 
 class DirectEnvironment {
   static const String CLIENT = "CLIENT";
@@ -339,7 +339,7 @@ abstract class DirectCall {
       String base,
       String application,
       String path,
-      Map<String, dynamic> decodedDirectRequest,
+      String json,
       Map<String, List<String>> headers,
       DirectCallback callback));
 }

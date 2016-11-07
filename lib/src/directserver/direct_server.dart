@@ -14,6 +14,7 @@ class DevDirectIsolateHandler extends Loggable {
   Future handleRequest(dynamic message) async {
     // faccio così anche per catturare errori anche asincroni non gestiti e chiudere la richiesta
     return Chain.capture(() async {
+      var isError = false;
       try {
         Registry.load(module);
 
@@ -22,12 +23,18 @@ class DevDirectIsolateHandler extends Loggable {
         await Registry
             .lookupObject(DirectHandler)
             .directCall(new DevServerDirectCall(message));
-      } finally {
-        try {
-          await Registry.closeScope(Scope.ISOLATE);
+      } catch (e, s) {
+        severe("Isolate error", e, s);
 
-          Registry.unload();
-        } finally {
+        isError = true;
+      }
+
+      try {
+        await Registry.closeScope(Scope.ISOLATE);
+
+        Registry.unload();
+      } finally {
+        if (isError) {
           SendPort sendPort = message["sendPort"];
           sendPort.send({"action": "error"});
         }
@@ -322,7 +329,7 @@ class ServerDirectCall implements DirectCall {
           String base,
           String application,
           String path,
-          Map<String, dynamic> decodedDirectRequest,
+          String json,
           Map<String, List<String>> headers,
           DirectCallback callback)) {
     Completer completer = new Completer();
@@ -340,10 +347,8 @@ class ServerDirectCall implements DirectCall {
       request2
           .close()
           .then((_) {
-            var decodedDirectRequest = JSON.decode(buffer.toString());
-
             return directCall(
-                base, application, path, decodedDirectRequest, headers,
+                base, application, path, buffer.toString(), headers,
                 (jsonResponse, responseHeaders) {
               responseHeaders.forEach(
                   (name, value) => request.response.headers.add(name, value));
@@ -370,7 +375,7 @@ class DevServerDirectCall implements DirectCall {
           String base,
           String application,
           String path,
-          Map<String, dynamic> decodedDirectRequest,
+          String json,
           Map<String, List<String>> headers,
           DirectCallback callback)) {
     Completer completer = new Completer();
@@ -393,10 +398,7 @@ class DevServerDirectCall implements DirectCall {
         request.add(message["data"]);
       } else if (message["action"] == "close") {
         request.close().then((_) {
-          var decodedDirectRequest = JSON.decode(buffer.toString());
-
-          return directCall(
-              base, application, path, decodedDirectRequest, headers,
+          return directCall(base, application, path, buffer.toString(), headers,
               (jsonResponse, responseHeaders) {
             sendPort.send({
               "action": "response",

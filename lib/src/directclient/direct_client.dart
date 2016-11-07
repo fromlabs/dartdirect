@@ -19,15 +19,11 @@ Future capturedInitializeClientDirectHandling(DirectModule module) async {
   context["dartApi"] = (dynamic callback) =>
       handler.dartApi.then((api) => callback.apply([api]));
 
-  context["directCall"] = (String base,
-          String application,
-          String path,
-          Map<String, dynamic> decodedDirectRequest,
-          Map<String, dynamic> headers1,
-          callback) =>
+  context["directCall"] = (String base, String application, String path,
+          String jsonRequest, String jsonHeaders, callback) =>
       Chain.capture(() {
         var headers = {};
-
+        var headers1 = JSON.decode(jsonHeaders);
         headers1.forEach((String key, value) {
           key = key.toLowerCase();
 
@@ -42,9 +38,9 @@ Future capturedInitializeClientDirectHandling(DirectModule module) async {
           }
         });
 
-        return handler.directCall(new ClientDirectCall(
-            base, application, path, decodedDirectRequest, headers,
-            (jsonResponse, responseHeaders) {
+        return handler.directCall(
+            new ClientDirectCall(base, application, path, jsonRequest, headers,
+                (jsonResponse, responseHeaders) {
           callback.apply([jsonResponse, new JsObject.jsify(responseHeaders)]);
         }));
       }, onError: (e, s) => _libraryLogger.severe("Uncaught error", e, s));
@@ -56,22 +52,21 @@ class ClientDirectCall implements DirectCall {
   final String base;
   final String application;
   final String path;
-  final Map<String, dynamic> decodedDirectRequest;
+  final String jsonRequest;
   final Map<String, List<String>> headers;
   final DirectCallback callback;
 
-  ClientDirectCall(this.base, this.application, this.path,
-      this.decodedDirectRequest, this.headers, this.callback);
+  ClientDirectCall(this.base, this.application, this.path, this.jsonRequest,
+      this.headers, this.callback);
 
   Future onRequest(
       Future directCall(
           String base,
           String application,
           String path,
-          Map<String, dynamic> decodedDirectRequest,
+          String json,
           Map<String, List<String>> headers,
           DirectCallback callback)) {
-    return directCall(
-        base, application, path, decodedDirectRequest, headers, callback);
+    return directCall(base, application, path, jsonRequest, headers, callback);
   }
 }

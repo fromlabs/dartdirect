@@ -261,7 +261,7 @@ class DirectManager extends Loggable {
       String base,
       String application,
       String path,
-      Map<String, dynamic> decodedDirectRequest,
+      String json,
       Map<String, List<String>> headers,
       DirectCallback callback) async {
     fine("Direct call...");
@@ -271,6 +271,9 @@ class DirectManager extends Loggable {
     if (path == "/direct/api") {
       callback(_getDartApi(base, application, false), {});
     } else {
+      // read parameters
+      var decodedDirectRequest = JSON.decode(json);
+
       if (isLoggable(Level.FINEST)) {
         var json =
             new JsonEncoder.withIndent("  ").convert(decodedDirectRequest);
@@ -305,6 +308,8 @@ class DirectManager extends Loggable {
 
         var directResponse = new DirectResultResponse(directRequest, value);
 
+        var jsonResponse = JSON.encode(directResponse);
+
         if (isLoggable(Level.FINEST)) {
           var json = new JsonEncoder.withIndent("  ").convert(directResponse);
           finest("RESPONSE: \r\n$json");
@@ -313,7 +318,7 @@ class DirectManager extends Loggable {
         info("Direct call ${directResponse.action}.${directResponse
                 .method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
-        callback(directResponse, directRequest.responseHeaders);
+        callback(jsonResponse, directRequest.responseHeaders);
       } catch (error, stacktrace) {
         DirectResponse directResponse;
 
@@ -359,6 +364,8 @@ class DirectManager extends Loggable {
           // TODO log errore
         }
 
+        var jsonResponse = JSON.encode(directResponse);
+
         if (isLoggable(Level.FINEST)) {
           var json = new JsonEncoder.withIndent("  ").convert(directResponse);
           finest("RESPONSE: \r\n$json");
@@ -367,7 +374,7 @@ class DirectManager extends Loggable {
         info("Direct call ${directResponse.action}.${directResponse
                 .method} elapsed in ${watcher.elapsedMilliseconds} ms");
 
-        callback(directResponse, {});
+        callback(jsonResponse, {});
       }
     }
   }
