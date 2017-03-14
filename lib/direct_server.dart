@@ -14,5 +14,6 @@ import 'dart:async';
 import 'package:stack_trace/stack_trace.dart';
 
 part "src/directserver/direct_server.dart";
+part "src/directserver/resource_manager.dart";
 
 final Logger _libraryLogger = new Logger("dartdirect.server");

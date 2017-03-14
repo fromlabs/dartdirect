@@ -3,6 +3,7 @@ version: 1.8.0
 author: Roberto Tassi <roberto.tassi@fromlabs.org>
 description: Tools and packages for implementing a backend accessible from ExtJs Direct.
 homepage: https://github.com/fromlabs/dartdirect
+publish_to: http://pub.primeapp.it:9091
 environment:
   sdk: ">=1.13.0 <2.0.0"
 dependencies:

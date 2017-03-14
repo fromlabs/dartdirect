@@ -167,6 +167,13 @@ class DirectServer extends AbstractDirectServer {
         .lookupObject(DirectHandler)
         .directCall(new ServerDirectCall(base, application, path, request));
   }
+
+  Future handleResourceRequest(
+      String base, String application, String path, HttpRequest request) async {
+    await Registry
+        .lookupObject(ResourceManager)
+        .resourceCall(base, application, path, request);
+  }
 }
 
 abstract class AbstractDirectServer extends Loggable {
@@ -194,6 +201,11 @@ abstract class AbstractDirectServer extends Loggable {
 
   Future handleRequest(
       String base, String application, String path, HttpRequest request);
+
+  Future handleResourceRequest(
+      String base, String application, String path, HttpRequest request) {
+    throw new UnsupportedError("Resource request handling");
+  }
 
   Future start() {
     return Chain.capture(() {
@@ -272,44 +284,65 @@ abstract class AbstractDirectServer extends Loggable {
           await handleRequest(null, application, directUri, request);
         }
       } else {
-        fine("Static content request: ${request.uri}");
+        String handlerUri;
+        var parts = request.uri.pathSegments;
 
-        var absolutePath = _webUri.path.endsWith("/")
-            ? _webUri.path.substring(0, _webUri.path.length - 1)
-            : _webUri.path;
-
-        absolutePath += request.uri.path;
-
-        if (await FileSystemEntity.isDirectory(absolutePath)) {
-          if (request.uri.path.endsWith("/")) {
-            absolutePath += "index.html";
-          } else {
-            var fragment =
-                request.uri.hasFragment ? "#${request.uri.fragment}" : "";
-            var query = request.uri.hasQuery ? "?${request.uri.query}" : "";
-
-            request.response.redirect(
-                request.uri.resolve("${request.uri.path}/$fragment$query"));
-            return;
-          }
+        var application = null;
+        if (parts.length > 1 && parts[1] == "handlers") {
+          application = parts[0];
+          handlerUri = parts.sublist(2).join("/");
+        } else if (parts.length > 0 && parts[0] == "handlers") {
+          application = null;
+          handlerUri = parts.sublist(1).join("/");
+        } else {
+          application = null;
+          handlerUri = null;
         }
 
-        final File file = new File(Uri.decodeFull(absolutePath));
+        if (handlerUri != null) {
+          fine("Handler content request: $handlerUri");
 
-        bool found = await file.exists();
+          await handleResourceRequest(_webUri.path, application, handlerUri, request);
+        } else {
+          fine("Static content request: ${request.uri}");
 
-        if (found) {
-          var mimeType = lookupMimeType(absolutePath.split("\\.").last);
-          if (mimeType != null) {
-            var split = mimeType.split("/");
-            request.response.headers.contentType =
-                new ContentType(split[0], split[1]);
+          var absolutePath = _webUri.path.endsWith("/")
+              ? _webUri.path.substring(0, _webUri.path.length - 1)
+              : _webUri.path;
+
+          absolutePath += request.uri.path;
+
+          if (await FileSystemEntity.isDirectory(absolutePath)) {
+            if (request.uri.path.endsWith("/")) {
+              absolutePath += "index.html";
+            } else {
+              var fragment =
+                  request.uri.hasFragment ? "#${request.uri.fragment}" : "";
+              var query = request.uri.hasQuery ? "?${request.uri.query}" : "";
+
+              request.response.redirect(
+                  request.uri.resolve("${request.uri.path}/$fragment$query"));
+              return;
+            }
           }
 
-          await file.openRead().pipe(request.response);
-        } else {
-          request.response.statusCode = HttpStatus.NOT_FOUND;
-          await request.response.close();
+          final File file = new File(Uri.decodeFull(absolutePath));
+
+          bool found = await file.exists();
+
+          if (found) {
+            var mimeType = lookupMimeType(absolutePath.split("\\.").last);
+            if (mimeType != null) {
+              var split = mimeType.split("/");
+              request.response.headers.contentType =
+                  new ContentType(split[0], split[1]);
+            }
+
+            await file.openRead().pipe(request.response);
+          } else {
+            request.response.statusCode = HttpStatus.NOT_FOUND;
+            await request.response.close();
+          }
         }
       }
     }

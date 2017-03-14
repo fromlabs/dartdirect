@@ -51,6 +51,7 @@ abstract class DirectModule extends RegistryModule {
     this.directManager = null;
   }
 
+  @override
   void onBindingAdded(Type clazz) {
     this.directManager.registerDirectAction(clazz);
   }
